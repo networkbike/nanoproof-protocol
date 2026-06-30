@@ -35,7 +35,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "catalog:",
-    "eslint-config-next": "^15.0.0",
+    "eslint-config-next": "^16.2.9",
     "postcss": "^8.4.0",
     "prettier": "catalog:",
     "tailwindcss": "^4.0.0",
