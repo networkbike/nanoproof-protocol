@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Workspace tooling: pnpm workspaces, Turborepo, ESLint 9 flat config, Prettier, TypeScript strict base config
 - Changesets config for SemVer + release automation
 
+### Phase 2 — Creator Registry architecture
+- Prisma schema: `apps/api/prisma/schema.prisma` (Creator, Wallet, Source, Organization, OrganizationMembership, ApiKey, VerificationChallenge)
+- Canonical OpenAPI 3.1 spec: `apps/api/openapi/creator-registry.yaml`
+- Architecture: `docs/phase-2-creator-registry.md`
+- Sub-docs: `docs/creator-registry.md`, `docs/source-verification.md`, `docs/wallet-verification.md`
+- 22 implementation tickets under `.github/issues/phase-2/`
+- Updated `apps/api/README.md` with the Phase 2 endpoint map
+
 ### Notes
 - **Pre-alpha.** No application code is shipped yet — see `ROADMAP.md` for the phased build plan.
 - Implementation begins in Phase 2 of the roadmap.

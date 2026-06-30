@@ -42,18 +42,40 @@ This roadmap is the public plan for building NanoProof Protocol from a hackathon
 
 **Goal:** Let creators register sources and attach a USDC payout wallet. This is the foundation every other layer depends on.
 
+### Architecture (complete)
+See [`docs/phase-2-creator-registry.md`](./docs/phase-2-creator-registry.md) for the canonical architecture document.
+- [`docs/creator-registry.md`](./docs/creator-registry.md) — Creator + Organization REST surface, validation, errors.
+- [`docs/source-verification.md`](./docs/source-verification.md) — DNS / HTML meta / file-upload verification flow.
+- [`docs/wallet-verification.md`](./docs/wallet-verification.md) — Arc + EIP-191 challenge flow.
+- [`apps/api/prisma/schema.prisma`](./apps/api/prisma/schema.prisma) — canonical DB schema (Creator, Wallet, Source, Organization, ApiKey, OrganizationMembership, VerificationChallenge).
+- [`apps/api/openapi/creator-registry.yaml`](./apps/api/openapi/creator-registry.yaml) — canonical OpenAPI 3.1 spec.
+
+### Implementation issues
+22 implementation tickets live at [`.github/issues/phase-2/`](./.github/issues/phase-2/). See [the index](./.github/issues/phase-2/README.md) for execution order.
+
 ### Deliverables
-- [ ] `Creator` and `Source` Prisma models with migrations
-- [ ] `POST /api/creators`, `POST /api/sources` endpoints with Zod validation
-- [ ] Wallet connect via RainbowKit (Arc testnet + mainnet-ready)
-- [ ] Source fingerprinting service (SHA-256 + perceptual hash for media)
-- [ ] Creator dashboard MVP at `/dashboard`
-- [ ] Source registration UI at `/dashboard/sources/new`
-- [ ] Payout settings (default per-citation price, royalty splits, period cap)
+- [ ] Prisma schema + migration (`P2-001`, `P2-002`)
+- [ ] Clerk + ApiKey auth strategies (`P2-003`, `P2-004`)
+- [ ] Shared Zod schemas: Creator, Wallet, Source, errors (`P2-005`, `P2-007`, `P2-010`, `P2-022`)
+- [ ] Creator module — full CRUD + events (`P2-006`)
+- [ ] Wallet module — CRUD + EIP-191 challenge/verify (`P2-008`, `P2-009`)
+- [ ] Source module — CRUD + DNS/HTML/file probers (`P2-011`, `P2-012`)
+- [ ] Organization module — CRUD + memberships (`P2-013`)
+- [ ] ApiKey module — issue / list / revoke (`P2-014`)
+- [ ] Global ZodValidationPipe + NP_* error catalog (`P2-015`, `P2-022`)
+- [ ] BullMQ + Redis infra + Idempotency interceptor (`P2-016`, `P2-017`)
+- [ ] Swagger UI + OpenAPI served at `/docs` + `/openapi.yaml` (`P2-018`)
+- [ ] Reputation score worker + GDPR purge (`P2-019`, `P2-020`)
+- [ ] Full end-to-end acceptance test (`P2-021`)
+- [ ] Wallet connect via RainbowKit (Arc testnet + mainnet-ready) — frontend, Phase 4
+- [ ] Creator dashboard MVP at `/dashboard` — frontend, Phase 4
+- [ ] Source registration UI at `/dashboard/sources/new` — frontend, Phase 4
+- [ ] Payout settings UI (default per-citation price, royalty splits, period cap) — frontend, Phase 4
 
 ### Acceptance
-- A creator can sign up, connect a wallet, register 3 sources, and see them listed in the dashboard.
-- A creator can configure a 70/30 split between two payout addresses.
+- A creator can sign up via Clerk, create a Creator profile, attach + verify an Arc wallet via EIP-191, register a Source + verify it via HTML meta, configure a 70/30 split between two payout addresses, and issue an API key — all within a single e2e test (`P2-021`).
+- The Phase 2 OpenAPI spec serves at `/openapi.yaml` and renders at `/docs`.
+- All `NP_*` errors are surfaced from a single shared catalog.
 
 ---
 

@@ -15,44 +15,87 @@ The API is the authoritative orchestration plane. It owns the database, coordina
 
 ---
 
-## Module map
+## Module map (Phase 2)
 
 ```
 apps/api/src/
-├── auth/                  # Clerk JWT verification, session guards
-├── creators/              # Creator profile CRUD, payout settings
-├── sources/               # Source registration, fingerprinting, licensing
-├── citations/             # Citation event ingest + read APIs
-├── payments/              # Payment intent lifecycle, batch orchestration
-├── agents/                # Agent developer accounts, API key issuance
-├── analytics/             # Aggregations, dashboards queries
-├── webhooks/              # Inbound from Circle, Arc, Clerk
-├── common/                # Filters, interceptors, pipes, error codes
-├── infra/                 # Prisma service, queue clients, config
+├── auth/                  # Clerk + ApiKey strategies, guards
+├── creators/              # Creator profile CRUD
+├── organizations/         # Org CRUD + memberships
+├── wallets/               # Wallet CRUD + EIP-191 verification
+├── sources/               # Source CRUD + DNS/HTML/file verification
+├── apikeys/               # API-key issuance + revocation
+├── common/                # Filters, pipes, interceptors, errors
+├── infra/                 # Prisma, queue, config, http
 └── main.ts                # Bootstrap
 ```
 
+Phase 3+ adds `citations/`, `payments/`, `agents/`, `analytics/`, `webhooks/`.
+
 ---
 
-## Public API surface
+## Public API surface (Phase 2)
+
+### Creator
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/v1/creators` | POST | Clerk | Create or idempotently return the auth'd creator |
+| `/v1/creators` | GET | Clerk | List creators (cursor-paginated) |
+| `/v1/creators/:id` | GET | Public | Public creator profile + counters |
+| `/v1/creators/:id` | PATCH | Clerk (owner) | Update profile |
+| `/v1/creators/:id` | DELETE | Clerk (owner) | Soft-delete |
+
+### Wallet
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/v1/wallets` | POST | Clerk | Attach a wallet |
+| `/v1/wallets` | GET | Clerk | List wallets for current creator |
+| `/v1/wallets/:id` | PATCH | Clerk (owner) | Update label / isPrimary |
+| `/v1/wallets/:id/challenge` | POST | Clerk (owner) | Issue EIP-191 challenge |
+| `/v1/wallets/:id/verify` | POST | Clerk (owner) | Submit signature, mark VERIFIED |
+
+### Source
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/v1/sources` | POST | Clerk | Register a source (DRAFT) |
+| `/v1/sources` | GET | Public | List sources (filterable) |
+| `/v1/sources/:id` | GET | Public | Read source |
+| `/v1/sources/:id` | PATCH | Clerk (owner) | Update source |
+| `/v1/sources/:id` | DELETE | Clerk (owner) | Archive |
+| `/v1/sources/:id/challenge` | POST | Clerk (owner) | Issue verification challenge |
+| `/v1/sources/:id/verify` | POST | Clerk (owner) | Probe + verify |
+
+### Organization
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/v1/organizations` | POST | Clerk | Create |
+| `/v1/organizations` | GET | Public | List |
+| `/v1/organizations/:id` | GET | Public | Read |
+| `/v1/organizations/:id/members` | POST | Clerk (owner/admin) | Invite |
+| `/v1/organizations/:id/members/:memberId` | PATCH | Clerk (owner/admin) | Update role |
+| `/v1/organizations/:id/members/:memberId` | DELETE | Clerk (owner/admin) | Remove |
+
+### ApiKey
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/v1/apikeys` | POST | Clerk | Issue a key (plaintext returned once) |
+| `/v1/apikeys` | GET | Clerk | List keys (never return plaintext or hash) |
+| `/v1/apikeys/:id` | DELETE | Clerk (owner) | Revoke |
+
+### System
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/v1/creators` | POST | Register a creator |
-| `/v1/creators/:id` | GET | Get creator profile |
-| `/v1/creators/:id/payout-settings` | PATCH | Update splits + caps |
-| `/v1/sources` | POST | Register a source |
-| `/v1/sources/:id` | GET / PATCH / DELETE | Manage source |
-| `/v1/citations` | POST | Ingest citation event (agent-side) |
-| `/v1/payments/intents` | POST | Create a payment intent |
-| `/v1/payments/intents/:id/execute` | POST | Execute a payment intent |
-| `/v1/agents/keys` | POST | Issue API key |
-| `/v1/analytics/creator/:id` | GET | Creator analytics |
-| `/v1/webhooks/circle` | POST | Circle webhook receiver |
-| `/v1/webhooks/arc` | POST | Arc finality webhook receiver |
 | `/v1/healthz` | GET | Health check |
+| `/docs` | GET | Swagger UI |
+| `/openapi.yaml` | GET | Canonical OpenAPI 3.1 spec |
 
-The full OpenAPI spec is auto-generated at `/openapi.json` and rendered at `/docs`.
+The full canonical OpenAPI spec lives at [`openapi/creator-registry.yaml`](./openapi/creator-registry.yaml) and is served at `/openapi.yaml`.
 
 ---
 
@@ -69,11 +112,17 @@ cp apps/api/.env.example apps/api/.env
 | `DATABASE_URL` | PostgreSQL (Neon in prod) |
 | `CLERK_SECRET_KEY` | Clerk secret |
 | `CLERK_JWT_KEY` | Clerk JWT verification key |
-| `CIRCLE_API_KEY` | Circle API |
-| `CIRCLE_GATEWAY_URL` | Circle Gateway endpoint |
+| `CLERK_WEBHOOK_SECRET` | Clerk lifecycle webhooks |
+| `CIRCLE_API_KEY` | Circle API (Phase 5+) |
+| `CIRCLE_GATEWAY_URL` | Circle Gateway endpoint (Phase 5+) |
 | `ARC_RPC_URL` | Arc L1 RPC |
-| `AGENT_WALLET_PRIVATE_KEY` | Hot wallet signing payouts |
-| `REDIS_URL` | BullMQ queue |
+| `AGENT_WALLET_PRIVATE_KEY` | Hot wallet signing payouts (Phase 5+) |
+| `REDIS_URL` | BullMQ queue (verification retries, webhooks) |
+| `VERIFICATION_CHALLENGE_TTL_MIN` | Challenge TTL (default 15) |
+| `DNS_PROBE_TIMEOUT_MS` | DNS probe budget (default 5000) |
+| `HTML_PROBE_TIMEOUT_MS` | HTML fetch budget (default 5000) |
+| `WALLET_MESSAGE_PREFIX` | EIP-191 message prefix (default `NanoProof Wallet Verification`) |
+| `API_KEY_PREFIX` | Plaintext prefix (default `np_live_`) |
 | `SENTRY_DSN` | Error tracking |
 | `AXIOM_TOKEN` | Log aggregation |
 | `PORT` | Server port (default 4000) |
@@ -90,10 +139,14 @@ pnpm --filter @nanoproof/api dev
 Database:
 
 ```bash
-pnpm --filter @nanoproof/api db:migrate    # apply migrations
+pnpm --filter @nanoproof/api db:generate  # regenerate Prisma client
+pnpm --filter @nanoproof/api db:migrate   # apply migrations (dev)
+pnpm --filter @nanoproof/api db:migrate:deploy   # apply migrations (CI/prod)
 pnpm --filter @nanoproof/api db:seed      # load fixtures
 pnpm --filter @nanoproof/api db:studio    # open Prisma Studio
 ```
+
+The Prisma schema lives at [`prisma/schema.prisma`](./prisma/schema.prisma). See [`../../docs/phase-2-creator-registry.md`](../../docs/phase-2-creator-registry.md) for the canonical architecture.
 
 Tests:
 

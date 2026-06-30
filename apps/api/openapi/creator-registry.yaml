@@ -1,0 +1,1203 @@
+openapi: 3.1.0
+info:
+  title: NanoProof Creator Registry API
+  version: 0.2.0
+  summary: Creator onboarding, source registration, wallet + API-key management.
+  description: |
+    REST API for the NanoProof Protocol Creator Registry. Phase 2 surface.
+    See `docs/phase-2-creator-registry.md` for the architecture overview and
+    `docs/protocol-spec.md` for the wire-level data model.
+
+    All endpoints are under `/v1`. Errors use the `NP_*` catalog defined in
+    `@nanoproof/shared/errors`.
+  contact:
+    name: NanoProof Protocol
+    email: ops@nanoproof.xyz
+    url: https://github.com/networkbike/nanoproof-protocol
+  license:
+    name: MIT
+    url: https://github.com/networkbike/nanoproof-protocol/blob/main/LICENSE
+
+servers:
+  - url: https://api.nanoproof.xyz
+    description: Production
+  - url: https://staging.nanoproof.xyz
+    description: Staging
+  - url: http://localhost:4000
+    description: Local development
+
+tags:
+  - name: Creators
+    description: Creator profile management.
+  - name: Wallets
+    description: Wallet attachment and EIP-191 verification.
+  - name: Sources
+    description: Source registration and verification (DNS / HTML / File).
+  - name: Organizations
+    description: Multi-creator groups (studios, labs, teams).
+  - name: ApiKeys
+    description: Long-lived credentials for the creator's own integrations.
+
+security:
+  - ClerkAuth: []
+  - ApiKeyAuth: []
+  - {}
+
+# -----------------------------------------------------------------------------
+# Paths
+# -----------------------------------------------------------------------------
+paths:
+
+  # ============================ Creator =====================================
+
+  /v1/creators:
+    post:
+      tags: [Creators]
+      operationId: createCreator
+      summary: Create (or idempotently return) the authenticated creator.
+      security:
+        - ClerkAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCreatorRequest'
+      responses:
+        '201':
+          description: Creator created.
+          headers:
+            ETag:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Creator'
+        '200':
+          description: Creator already existed (idempotent).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Creator'
+        '409':
+          $ref: '#/components/responses/UsernameTaken'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags: [Creators]
+      operationId: listCreators
+      summary: List creators (cursor-paginated).
+      security:
+        - ClerkAuth: []
+      parameters:
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 80 }
+          description: Prefix search on `username` or `name`.
+        - in: query
+          name: minReputation
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: Page of creators.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorPage'
+
+  /v1/creators/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CreatorId'
+    get:
+      tags: [Creators]
+      operationId: getCreator
+      summary: Get a public creator profile.
+      responses:
+        '200':
+          description: Creator profile with public counters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorPublic'
+        '404':
+          $ref: '#/components/responses/CreatorNotFound'
+
+    patch:
+      tags: [Creators]
+      operationId: updateCreator
+      summary: Update the authenticated creator's profile.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCreatorRequest'
+      responses:
+        '200':
+          description: Updated creator.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Creator'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [Creators]
+      operationId: deleteCreator
+      summary: Soft-delete the authenticated creator.
+      security:
+        - ClerkAuth: []
+      responses:
+        '204':
+          description: Soft-deleted.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================ Wallet =====================================
+
+  /v1/wallets:
+    post:
+      tags: [Wallets]
+      operationId: attachWallet
+      summary: Attach a wallet to the authenticated creator.
+      security:
+        - ClerkAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachWalletRequest'
+      responses:
+        '201':
+          description: Wallet attached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '409':
+          description: Wallet already attached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyAdded:
+                  value:
+                    code: NP_WALLET_ALREADY_ADDED
+                    message: This address is already attached to your account.
+
+    get:
+      tags: [Wallets]
+      operationId: listWallets
+      summary: List wallets for the authenticated creator.
+      security:
+        - ClerkAuth: []
+      responses:
+        '200':
+          description: Creator's wallets.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wallet'
+
+  /v1/wallets/{id}:
+    parameters:
+      - $ref: '#/components/parameters/WalletId'
+    patch:
+      tags: [Wallets]
+      operationId: updateWallet
+      summary: Update a wallet's label or primary flag.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWalletRequest'
+      responses:
+        '200':
+          description: Updated wallet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/WalletNotFound'
+
+  /v1/wallets/{id}/challenge:
+    parameters:
+      - $ref: '#/components/parameters/WalletId'
+    post:
+      tags: [Wallets]
+      operationId: issueWalletChallenge
+      summary: Issue an EIP-191 challenge for wallet ownership proof.
+      security:
+        - ClerkAuth: []
+      responses:
+        '200':
+          description: Challenge.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletChallengeResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/wallets/{id}/verify:
+    parameters:
+      - $ref: '#/components/parameters/WalletId'
+    post:
+      tags: [Wallets]
+      operationId: verifyWallet
+      summary: Submit an EIP-191 signature to verify wallet ownership.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyWalletRequest'
+      responses:
+        '200':
+          description: Wallet verified.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wallet'
+        '422':
+          description: Invalid signature.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                badSig:
+                  value:
+                    code: NP_INVALID_SIGNATURE
+                    message: Signature does not recover the wallet address.
+
+  # ============================ Source =====================================
+
+  /v1/sources:
+    post:
+      tags: [Sources]
+      operationId: createSource
+      summary: Register a new Source (creates in DRAFT).
+      security:
+        - ClerkAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSourceRequest'
+      responses:
+        '201':
+          description: Source created in DRAFT.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '409':
+          description: URL already registered for this creator.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags: [Sources]
+      operationId: listSources
+      summary: List Sources (publicly cacheable).
+      parameters:
+        - in: query
+          name: creatorId
+          schema: { type: string }
+        - in: query
+          name: organizationId
+          schema: { type: string }
+        - in: query
+          name: domain
+          schema: { type: string }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [DRAFT, PENDING_VERIFICATION, ACTIVE, PAUSED, REJECTED, ARCHIVED]
+            default: ACTIVE
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200':
+          description: Page of sources.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourcePage'
+
+  /v1/sources/{id}:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    get:
+      tags: [Sources]
+      operationId: getSource
+      summary: Read a Source.
+      responses:
+        '200':
+          description: Source.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '404':
+          $ref: '#/components/responses/SourceNotFound'
+
+    patch:
+      tags: [Sources]
+      operationId: updateSource
+      summary: Update a Source's metadata.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSourceRequest'
+      responses:
+        '200':
+          description: Updated source.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags: [Sources]
+      operationId: archiveSource
+      summary: Archive (soft-delete) a Source.
+      security:
+        - ClerkAuth: []
+      responses:
+        '204':
+          description: Archived.
+
+  /v1/sources/{id}/challenge:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    post:
+      tags: [Sources]
+      operationId: issueSourceChallenge
+      summary: Issue a verification challenge for a Source.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [method]
+              properties:
+                method:
+                  type: string
+                  enum: [DNS_TXT, HTML_META, FILE_UPLOAD]
+      responses:
+        '200':
+          description: Challenge.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceChallengeResponse'
+
+  /v1/sources/{id}/verify:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    post:
+      tags: [Sources]
+      operationId: verifySource
+      summary: Probe the Source and verify ownership.
+      security:
+        - ClerkAuth: []
+      responses:
+        '200':
+          description: Source verified.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '422':
+          description: Verification failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ============================ Organization ===============================
+
+  /v1/organizations:
+    post:
+      tags: [Organizations]
+      operationId: createOrganization
+      summary: Create an Organization.
+      security:
+        - ClerkAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '201':
+          description: Organization created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+
+    get:
+      tags: [Organizations]
+      operationId: listOrganizations
+      summary: List Organizations.
+      responses:
+        '200':
+          description: Page of organizations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationPage'
+
+  /v1/organizations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Organizations]
+      operationId: getOrganization
+      summary: Get an Organization.
+      responses:
+        '200':
+          description: Organization.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '404':
+          $ref: '#/components/responses/OrganizationNotFound'
+
+  /v1/organizations/{id}/members:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    post:
+      tags: [Organizations]
+      operationId: inviteOrganizationMember
+      summary: Invite a Creator to the Organization.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [creatorId, role]
+              properties:
+                creatorId: { type: string }
+                role:
+                  type: string
+                  enum: [OWNER, ADMIN, MEMBER, VIEWER]
+      responses:
+        '201':
+          description: Membership created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMembership'
+
+  /v1/organizations/{id}/members/{memberId}:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+      - in: path
+        name: memberId
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [Organizations]
+      operationId: updateOrganizationMember
+      summary: Change a member's role.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [OWNER, ADMIN, MEMBER, VIEWER]
+      responses:
+        '200':
+          description: Updated membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMembership'
+    delete:
+      tags: [Organizations]
+      operationId: removeOrganizationMember
+      summary: Remove a member from the Organization.
+      security:
+        - ClerkAuth: []
+      responses:
+        '204':
+          description: Removed.
+
+  # ============================ ApiKey =====================================
+
+  /v1/apikeys:
+    post:
+      tags: [ApiKeys]
+      operationId: issueApiKey
+      summary: Issue a new API key. The plaintext key is returned exactly once.
+      security:
+        - ClerkAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueApiKeyRequest'
+      responses:
+        '201':
+          description: API key issued. Plaintext returned ONLY in this response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssuedApiKey'
+
+    get:
+      tags: [ApiKeys]
+      operationId: listApiKeys
+      summary: List the authenticated Creator's API keys.
+      security:
+        - ClerkAuth: []
+      responses:
+        '200':
+          description: API keys (plaintext never returned).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKey'
+
+  /v1/apikeys/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [ApiKeys]
+      operationId: revokeApiKey
+      summary: Revoke an API key.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 200 }
+      responses:
+        '204':
+          description: Revoked.
+
+  # ============================ Health =====================================
+
+  /v1/healthz:
+    get:
+      tags: [Creators]
+      operationId: healthz
+      summary: Health check (auth-free).
+      security: []
+      responses:
+        '200':
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok, degraded] }
+                  checks:
+                    type: object
+                    additionalProperties: true
+
+# -----------------------------------------------------------------------------
+# Components
+# -----------------------------------------------------------------------------
+components:
+
+  securitySchemes:
+    ClerkAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Clerk session JWT.
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: custom
+      description: '`np_live_xxx...` API key issued to the creator.'
+
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: false
+      schema: { type: string, maxLength: 200 }
+      description: Optional idempotency token (24h cache).
+    CreatorId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, pattern: '^cr_[a-z0-9]+$' }
+    WalletId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, pattern: '^wl_[a-z0-9]+$' }
+    SourceId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, pattern: '^src_[a-z0-9]+$' }
+    OrganizationId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, pattern: '^org_[a-z0-9]+$' }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid auth.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated but not authorized for this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Request body failed Zod validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+    RateLimited:
+      description: Too many requests.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    CreatorNotFound:
+      description: Creator not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    WalletNotFound:
+      description: Wallet not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    SourceNotFound:
+      description: Source not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    OrganizationNotFound:
+      description: Organization not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UsernameTaken:
+      description: Username or email is already taken.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+
+    # ---------- Common ------------------------------------------------------
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 'Stable error code from the `NP_*` catalog.'
+          example: NP_USERNAME_TAKEN
+        message:
+          type: string
+          example: Username 'ada' is already in use.
+        details:
+          type: object
+          additionalProperties: true
+
+    ValidationErrorResponse:
+      type: object
+      required: [code, message, issues]
+      properties:
+        code:
+          type: string
+          example: NP_VALIDATION_FAILED
+        message:
+          type: string
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              path: { type: string, example: username }
+              message: { type: string, example: Must be 3-30 characters. }
+              code: { type: string }
+
+    CursorPage:
+      type: object
+      required: [data, hasMore]
+      properties:
+        data:
+          type: array
+          items: {}
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+
+    # ---------- Creator -----------------------------------------------------
+
+    CreateCreatorRequest:
+      type: object
+      required: [name, username, email]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        username:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: '^[a-z0-9][a-z0-9_-]*[a-z0-9]$'
+        email:
+          type: string
+          format: email
+        bio: { type: string, maxLength: 500 }
+        avatarUrl: { type: string, format: uri }
+        twitterHandle: { type: string, maxLength: 50 }
+        githubHandle: { type: string, maxLength: 50 }
+        websiteUrl: { type: string, format: uri }
+
+    UpdateCreatorRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        bio: { type: string, maxLength: 500 }
+        avatarUrl: { type: string, format: uri }
+        twitterHandle: { type: string, maxLength: 50 }
+        githubHandle: { type: string, maxLength: 50 }
+        websiteUrl: { type: string, format: uri }
+        settings:
+          type: object
+          additionalProperties: true
+
+    Creator:
+      type: object
+      required: [id, name, username, email, reputationScore, createdAt, updatedAt]
+      properties:
+        id: { type: string, example: cr_01HXY... }
+        name: { type: string }
+        username: { type: string }
+        email: { type: string, format: email }
+        bio: { type: string, nullable: true }
+        avatarUrl: { type: string, format: uri, nullable: true }
+        reputationScore: { type: integer, example: 0 }
+        twitterHandle: { type: string, nullable: true }
+        githubHandle: { type: string, nullable: true }
+        websiteUrl: { type: string, format: uri, nullable: true }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreatorPublic:
+      allOf:
+        - $ref: '#/components/schemas/Creator'
+        - type: object
+          properties:
+            walletCount: { type: integer }
+            sourceCount: { type: integer }
+            totalEarnedUsdc: { type: string, example: "12500000" }
+
+    CreatorPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Creator'
+
+    # ---------- Wallet ------------------------------------------------------
+
+    AttachWalletRequest:
+      type: object
+      required: [address, network]
+      properties:
+        address:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+          description: EIP-55 checksummed or lowercase hex address.
+        network:
+          $ref: '#/components/schemas/WalletNetwork'
+        label: { type: string, maxLength: 60 }
+        isPrimary: { type: boolean, default: false }
+
+    UpdateWalletRequest:
+      type: object
+      properties:
+        label: { type: string, maxLength: 60 }
+        isPrimary: { type: boolean }
+
+    Wallet:
+      type: object
+      required: [id, creatorId, address, network, verificationStatus, createdAt]
+      properties:
+        id: { type: string, example: wl_01HXY... }
+        creatorId: { type: string, example: cr_01HXY... }
+        address: { type: string, example: '0xAbCdEf...' }
+        network:
+          $ref: '#/components/schemas/WalletNetwork'
+        label: { type: string, nullable: true }
+        isPrimary: { type: boolean }
+        verificationStatus:
+          $ref: '#/components/schemas/WalletVerificationStatus'
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    WalletChallengeResponse:
+      type: object
+      required: [challengeId, message, nonce, expiresAt]
+      properties:
+        challengeId: { type: string, example: vc_01HXY... }
+        message:
+          type: string
+          description: Exact bytes the wallet must sign.
+        nonce:
+          type: string
+          description: One-time token embedded in the message.
+        expiresAt: { type: string, format: date-time }
+
+    VerifyWalletRequest:
+      type: object
+      required: [challengeId, signature]
+      properties:
+        challengeId: { type: string }
+        signature:
+          type: string
+          pattern: '^0x[a-fA-F0-9]+$'
+          description: 65-byte EIP-191 signature (130 hex chars + 0x).
+
+    # ---------- Source ------------------------------------------------------
+
+    CreateSourceRequest:
+      type: object
+      required: [title, url, citationPrice]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        url:
+          type: string
+          format: uri
+          pattern: '^https://'
+        description: { type: string, maxLength: 1000 }
+        license:
+          type: string
+          default: all-rights-reserved
+        citationPrice:
+          type: string
+          description: Atomic units of USDC (6 decimals). '1000' = $0.001.
+          default: '1000'
+        minPayout: { type: string, default: '100' }
+        periodCap: { type: string, nullable: true }
+        organizationId: { type: string, nullable: true }
+        language: { type: string, example: en }
+        contentType: { type: string, example: text/html }
+
+    UpdateSourceRequest:
+      type: object
+      properties:
+        title: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 1000 }
+        license: { type: string }
+        citationPrice: { type: string }
+        minPayout: { type: string }
+        periodCap: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [ACTIVE, PAUSED]
+          description: Only ACTIVE ↔ PAUSED toggles are allowed via PATCH.
+
+    Source:
+      type: object
+      required: [id, creatorId, title, url, domain, status, citationPrice, createdAt, updatedAt]
+      properties:
+        id: { type: string, example: src_01HXY... }
+        creatorId: { type: string, example: cr_01HXY... }
+        organizationId: { type: string, nullable: true }
+        title: { type: string }
+        url: { type: string, format: uri }
+        domain: { type: string, example: ada.example }
+        description: { type: string, nullable: true }
+        license: { type: string }
+        citationPrice: { type: string, example: '1000' }
+        minPayout: { type: string, example: '100' }
+        periodCap: { type: string, nullable: true }
+        status:
+          $ref: '#/components/schemas/SourceStatus'
+        verificationMethod:
+          $ref: '#/components/schemas/VerificationMethod'
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectionReason: { type: string, nullable: true }
+        citationCount: { type: integer }
+        earnedAtomic: { type: string, example: '0' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    SourceChallengeResponse:
+      type: object
+      required: [challengeId, method, token, instructions, expiresAt]
+      properties:
+        challengeId: { type: string }
+        method:
+          $ref: '#/components/schemas/VerificationMethod'
+        token: { type: string, description: The literal token to place. }
+        instructions:
+          type: object
+          properties:
+            DNS_TXT: { type: string }
+            HTML_META: { type: string }
+            FILE_UPLOAD: { type: string }
+        expiresAt: { type: string, format: date-time }
+
+    SourcePage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Source'
+
+    # ---------- Organization ------------------------------------------------
+
+    CreateOrganizationRequest:
+      type: object
+      required: [name, slug]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        slug:
+          type: string
+          minLength: 3
+          maxLength: 40
+          pattern: '^[a-z0-9][a-z0-9-]*[a-z0-9]$'
+        description: { type: string, maxLength: 500 }
+        website: { type: string, format: uri }
+        logoUrl: { type: string, format: uri }
+
+    Organization:
+      type: object
+      required: [id, name, slug, createdAt, updatedAt]
+      properties:
+        id: { type: string, example: org_01HXY... }
+        name: { type: string }
+        slug: { type: string }
+        description: { type: string, nullable: true }
+        website: { type: string, format: uri, nullable: true }
+        logoUrl: { type: string, format: uri, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    OrganizationPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Organization'
+
+    OrganizationMembership:
+      type: object
+      required: [id, organizationId, creatorId, role]
+      properties:
+        id: { type: string }
+        organizationId: { type: string }
+        creatorId: { type: string }
+        role:
+          $ref: '#/components/schemas/OrganizationRole'
+        invitedAt: { type: string, format: date-time }
+        acceptedAt: { type: string, format: date-time, nullable: true }
+
+    # ---------- ApiKey ------------------------------------------------------
+
+    IssueApiKeyRequest:
+      type: object
+      required: [name, scope]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: Human-readable label.
+        scope:
+          $ref: '#/components/schemas/ApiKeyScope'
+        allowedDomains:
+          type: array
+          items: { type: string }
+          description: Empty = unrestricted.
+        rateLimit:
+          type: integer
+          minimum: 60
+          maximum: 10000
+          default: 600
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ApiKey:
+      type: object
+      required: [id, creatorId, name, prefix, scope, active, createdAt]
+      properties:
+        id: { type: string, example: ak_01HXY... }
+        creatorId: { type: string }
+        name: { type: string }
+        prefix:
+          type: string
+          description: First 8 chars of the plaintext key (lookup-only).
+        scope:
+          $ref: '#/components/schemas/ApiKeyScope'
+        allowedDomains:
+          type: array
+          items: { type: string }
+        rateLimit: { type: integer }
+        active: { type: boolean }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        lastUsedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    IssuedApiKey:
+      allOf:
+        - $ref: '#/components/schemas/ApiKey'
+        - type: object
+          required: [plaintext]
+          properties:
+            plaintext:
+              type: string
+              description: |
+                Full plaintext API key. Returned **exactly once**.
+                Format: `np_live_<32 url-safe base64 chars>`
+              example: np_live_8f3b2e1d9cAf...
+
+    # ---------- Enums -------------------------------------------------------
+
+    WalletNetwork:
+      type: string
+      enum:
+        - ARC_TESTNET
+        - ARC_MAINNET
+        - BASE
+        - BASE_SEPOLIA
+        - ETHEREUM
+        - ETHEREUM_SEPOLIA
+        - POLYGON
+        - POLYGON_AMOY
+
+    WalletVerificationStatus:
+      type: string
+      enum: [UNVERIFIED, PENDING, VERIFIED, REVOKED]
+
+    SourceStatus:
+      type: string
+      enum: [DRAFT, PENDING_VERIFICATION, ACTIVE, PAUSED, REJECTED, ARCHIVED]
+
+    VerificationMethod:
+      type: string
+      enum: [DNS_TXT, HTML_META, FILE_UPLOAD]
+
+    ApiKeyScope:
+      type: string
+      enum: [READ_ONLY, CITATION_WRITE, PAYMENT_WRITE, ADMIN]
+
+    OrganizationRole:
+      type: string
+      enum: [OWNER, ADMIN, MEMBER, VIEWER]
