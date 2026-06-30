@@ -1,8 +1,8 @@
 {
   "name": "@nanoproof/shared",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "Zod schemas, types, and constants shared across the NanoProof Protocol.",
+  "description": "Zod schemas, types, and constants shared across NanoProof apps and packages.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -25,6 +25,7 @@
       "import": "./dist/constants/index.js"
     }
   },
+  "files": ["dist", "README.md"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",

@@ -1,103 +1,62 @@
-# NanoProof Web (`apps/web`)
+# `@nanoproof/web`
 
-> Creator dashboards, agent developer portal, public analytics site, and marketing front door.
+Next.js 15 dashboard + simulator for the NanoProof Protocol.
 
-[![Stack: Next.js 15](https://img.shields.io/badge/Next.js-15-000000.svg)](https://nextjs.org)
-[![Stack: TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://typescriptlang.org)
-[![Stack: TailwindCSS 4](https://img.shields.io/badge/TailwindCSS-4-06B6D4.svg)](https://tailwindcss.com)
-[![Stack: shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-latest-000000.svg)](https://ui.shadcn.com)
+## Quickstart
 
----
+```bash
+cp .env.example .env       # defaults assume api on :4000
+pnpm dev                   # http://localhost:3000
+```
 
-## Overview
+## Pages
 
-The web app is the public surface of NanoProof. It's built with **Next.js 15** using the App Router, **TypeScript** strict mode, **TailwindCSS 4**, and **shadcn/ui** primitives.
+| Path              | What it does                                          |
+| ----------------- | ----------------------------------------------------- |
+| `/`               | Landing page with three pillars                        |
+| `/dashboard`      | Server-rendered creator dashboard (sources + payments)|
+| `/simulate`       | Client-side form: simulate a citation + payment       |
+| `/api-keys`       | Mint + list API keys (Phase 2 P2-013 wires real auth) |
 
-It hosts four distinct surfaces:
-
-| Route group | Purpose |
-|-------------|---------|
-| `/` | Marketing site + docs landing |
-| `/dashboard` | Creator dashboard (sources, earnings, citations) |
-| `/developers` | Agent developer portal (API keys, snippets, metrics) |
-| `/analytics` | Public analytics (transparent citation + payment ledger) |
-
----
-
-## Architecture
+## Layout
 
 ```
 apps/web/
-├── app/
-│   ├── (marketing)/          # static + RSC marketing pages
-│   ├── (dashboard)/          # authenticated creator area
-│   ├── (developers)/         # agent developer portal
-│   ├── analytics/            # public analytics
-│   ├── api/                  # route handlers (proxy only)
-│   ├── layout.tsx
-│   └── globals.css
-├── components/
-│   ├── ui/                   # shadcn primitives
-│   ├── marketing/
-│   ├── dashboard/
-│   └── shared/
-├── lib/
-│   ├── api.ts                # typed NestJS client
-│   ├── wallet.ts             # RainbowKit config
-│   └── utils.ts
-├── public/
-├── tailwind.config.ts
-├── next.config.mjs
-├── tsconfig.json
-└── README.md
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx          Global layout + nav
+│   │   ├── page.tsx            Landing
+│   │   ├── globals.css         Tailwind 4 theme tokens
+│   │   ├── dashboard/page.tsx  Server component, fetches /v1/*
+│   │   ├── simulate/page.tsx   Client form, posts to /v1/*/simulate
+│   │   └── api-keys/page.tsx   Phase-2 stub
+│   ├── components/
+│   │   └── ui/
+│   │       ├── button.tsx      shadcn-style variant Button
+│   │       └── card.tsx
+│   └── lib/
+│       ├── api.ts              Fetch wrapper (sends bearer + JSON)
+│       └── utils.ts            cn() + atomicUsdc → USD formatter
+└── public/
 ```
 
----
+## Talking to the API
 
-## Environment
+- **Server components**: `fetch(${process.env.NEXT_PUBLIC_API_URL}/v1/...)` with `cache: "no-store"`.
+- **Client components**: `import { api } from "@/lib/api"` — handles JSON + bearer auth.
 
-Copy `.env.example` to `.env.local`:
+Both go through the API at `NEXT_PUBLIC_API_URL` (defaults to `http://localhost:4000`).
 
-```bash
-cp apps/web/.env.example apps/web/.env.local
-```
+## Phase 2 upgrades
 
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_NANOPROOF_API_URL` | NestJS API base URL |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk auth |
-| `CLERK_SECRET_KEY` | Clerk server-side |
-| `NEXT_PUBLIC_ARC_RPC_URL` | Arc testnet/mainnet RPC |
-| `NEXT_PUBLIC_ARCSCAN_URL` | ArcScan base URL |
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | WalletConnect |
-
----
-
-## Local development
-
-```bash
-pnpm --filter @nanoproof/web dev
-# → http://localhost:3000
-```
-
----
+- Wire Clerk auth into `app/layout.tsx` + middleware
+- Replace the placeholder `/api-keys` page with the real mint flow
+- Add `/dashboard/[creatorId]` for public creator profiles
+- Add `<Provider>` for React Query hydration
 
 ## Conventions
 
-- **App Router only.** No pages router.
-- **Server Components by default.** `"use client"` only where needed.
-- **shadcn primitives** — install via `pnpm dlx shadcn@latest add <component>`.
-- **No business logic in components.** Mutations go through `lib/api.ts`.
-- **TanStack Query** for client-side data fetching.
-
----
-
-## Roadmap
-
-See [`ROADMAP.md`](../../ROADMAP.md) for the build phases this app lands in (Phase 2, 4, 6, 9).
-
----
-
-## License
-
-MIT — see [`LICENSE`](../../LICENSE).
+- Server components by default. Add `"use client"` only when you need state / effects.
+- Tailwind 4 — tokens in `globals.css` via `@theme {}`.
+- Use `cn()` from `@/lib/utils` for conditional classes.
+- Use `formatUsd()` (in `@/lib/utils`) for any USDC display.

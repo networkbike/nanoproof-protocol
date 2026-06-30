@@ -1,7 +1,7 @@
 # NanoProof Protocol — Roadmap
 
-> **Last updated:** 2026-06-30
-> **Status:** Pre-Alpha (Phase 1 in progress)
+> **Last updated:** 2026-07-01
+> **Status:** Pre-Alpha (MVP scaffolding shipped, Phase 2 next)
 > **Cadence:** Reviewed weekly during the Lepton Hackathon; quarterly post-launch.
 
 This roadmap is the public plan for building NanoProof Protocol from a hackathon prototype into a venture-grade open protocol. Each phase ships a working increment; every increment is independently demoable.
@@ -17,7 +17,27 @@ This roadmap is the public plan for building NanoProof Protocol from a hackathon
 
 ---
 
-## Phase 1 — Repository Foundation  🟡 In Progress  · Lepton-tagged
+## Phase 0 — MVP Scaffolding  ✅ Complete · Lepton-tagged
+
+**Goal:** Stand up the full monorepo end-to-end so the Lepton judges can clone → install → run → simulate a citation + payment within 5 minutes. No business logic — foundation only.
+
+### Deliverables
+- [x] `apps/api` — NestJS 11 + Prisma 6 wired with health, creators, wallets, sources, citations, payments modules (skeleton)
+- [x] `apps/web` — Next.js 15 + Tailwind 4 + shadcn-style components, with landing / dashboard / simulate / api-keys pages
+- [x] `packages/shared` — Zod schemas, NP_* error catalog, atomic-USDC constants
+- [x] Consolidated Prisma schema v1 (Creator, Wallet, Source, Citation, Payment)
+- [x] `docker-compose.yml` (Postgres 16 + Redis 7)
+- [x] `SETUP.md`, `DEVELOPMENT.md`, README rewrite
+- [x] 5 GitHub milestones under `.github/milestones/`
+
+### Acceptance
+- `pnpm install && docker compose up -d && pnpm --filter @nanoproof/api db:migrate && pnpm --filter @nanoproof/api db:seed && pnpm dev` brings up the full stack.
+- `/simulate` round-trips a citation + payment; `/dashboard` renders the recorded rows.
+- Swagger UI loads at `http://localhost:4000/docs`.
+
+---
+
+## Phase 1 — Repository Foundation  ✅ Complete  · Lepton-tagged
 
 **Goal:** Establish the monorepo, documentation, contributor workflow, and CI baseline so the rest of the protocol lands in a professional, reviewable home.
 

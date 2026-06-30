@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **MVP scaffolding (apps + packages/shared + Prisma + docker-compose)**
+  - `apps/api` (NestJS 11 + Prisma 6) wired with: PrismaService, HealthController, Creators/Wallets/Sources/Citations/Payments modules with skeleton CRUD + simulate endpoints, HttpExceptionFilter mapping to NP_* codes, helmet + cors + rate-limiter + Swagger
+  - `apps/web` (Next.js 15 + Tailwind 4 + shadcn-style components) with landing, dashboard, simulate, api-keys pages
+  - `packages/shared` with Zod schemas for Creator / Wallet / Source / Citation / Payment, NP_* error catalog, atomic-USDC constants + utils
+  - Consolidated Prisma schema v1 (Creator, Wallet, Source, Citation, Payment + 4 enums) + idempotent seed
+  - `docker-compose.yml` (Postgres 16 + Redis 7)
+  - `SETUP.md`, `DEVELOPMENT.md`, README rewrite for MVP scope
+  - 5 GitHub milestones under `.github/milestones/`
+
+## [0.0.0] — Repository Foundation (Phase 1)
+
+### Added
 - Initial monorepo scaffold (apps + packages + contracts + docs + scripts + .github)
 - Top-level documentation: README, ARCHITECTURE, ROADMAP, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT
 - Per-package READMEs for `sdk`, `citation-engine`, `payment-engine`, `shared`, `web`, `api`, `contracts`, `scripts`

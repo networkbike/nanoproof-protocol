@@ -1,8 +1,8 @@
 {
   "name": "@nanoproof/web",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "NanoProof creator dashboard, agent developer portal, and public analytics site.",
+  "description": "NanoProof creator dashboard + agent developer portal (Next.js 15).",
   "license": "MIT",
   "scripts": {
     "dev": "next dev",
@@ -16,30 +16,31 @@
   },
   "dependencies": {
     "@nanoproof/shared": "workspace:*",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@tanstack/react-query": "^5.50.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.460.0",
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@clerk/nextjs": "^6.0.0",
-    "@tanstack/react-query": "^5.50.0",
-    "@rainbow-me/rainbowkit": "^2.1.0",
-    "wagmi": "^2.12.0",
-    "viem": "catalog:",
-    "zod": "catalog:",
-    "tailwindcss": "^4.0.0",
-    "@radix-ui/react-slot": "^1.1.0",
-    "class-variance-authority": "^0.7.0",
-    "clsx": "^2.1.0",
     "tailwind-merge": "^2.5.0",
-    "lucide-react": "^0.460.0"
+    "tailwindcss-animate": "^1.0.7",
+    "viem": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "typescript": "catalog:",
+    "@playwright/test": "^1.48.0",
+    "@types/node": "catalog:",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/node": "catalog:",
     "eslint": "catalog:",
     "eslint-config-next": "^15.0.0",
-    "vitest": "catalog:",
-    "@playwright/test": "^1.48.0"
+    "postcss": "^8.4.0",
+    "prettier": "catalog:",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
