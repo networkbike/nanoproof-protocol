@@ -1,0 +1,36 @@
+name: ❓ Question
+description: Ask a question about the protocol, integration, or contribution process.
+labels: ["question"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For quick questions. For broader discussion, prefer GitHub Discussions.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Any background the maintainers should know.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - General
+        - Protocol
+        - Integration
+        - Contributing
+        - Security
+        - Other

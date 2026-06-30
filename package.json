@@ -1,0 +1,44 @@
+{
+  "name": "nanoproof-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The open infrastructure layer for autonomous creator compensation.",
+  "license": "MIT",
+  "author": "NanoProof Protocol Contributors",
+  "homepage": "https://github.com/networkbike/nanoproof-protocol#readme",
+  "bugs": {
+    "url": "https://github.com/networkbike/nanoproof-protocol/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/networkbike/nanoproof-protocol.git"
+  },
+  "engines": {
+    "node": ">=20.18.2",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "changeset": "changeset",
+    "release:publish": "changeset publish",
+    "audit": "pnpm audit --prod",
+    "outdated": "pnpm outdated"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.0",
+    "@types/node": "^20.14.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0"
+  }
+}

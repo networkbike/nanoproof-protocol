@@ -1,0 +1,40 @@
+# Force LF line endings for text files
+* text=auto eol=lf
+
+# Explicit for source code
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.sol text eol=lf
+
+# Mark binaries explicitly
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.mp4 binary
+*.webm binary
+
+# Linguist overrides — surface the right languages in the GitHub language bar.
+docs/* linguist-documentation
+*.md linguist-documentation
+.github/* linguist-documentation
+LICENSE linguist-documentation
+README.md linguist-documentation
+ARCHITECTURE.md linguist-documentation
+ROADMAP.md linguist-documentation
+CONTRIBUTING.md linguist-documentation
+SECURITY.md linguist-documentation
+CODE_OF_CONDUCT.md linguist-documentation

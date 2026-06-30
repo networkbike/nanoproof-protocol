@@ -1,0 +1,34 @@
+name: 🔐 Security Report
+description: Report a security vulnerability. Follow SECURITY.md.
+labels: ["security"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **Do not file public security issues.** Instead, email **security@nanoproof.xyz**.
+        This template is provided for completeness; please use the private disclosure process described in [`SECURITY.md`](../../SECURITY.md).
+
+  - type: input
+    id: contact
+    attributes:
+      label: Secure Contact Channel
+      description: How should we reach you securely?
+      placeholder: "Signal handle, encrypted email, PGP key URL"
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Brief description of the vulnerability.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: What is the realistic worst-case impact?
+    validations:
+      required: true

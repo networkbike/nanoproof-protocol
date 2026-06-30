@@ -1,0 +1,88 @@
+version: 2
+
+updates:
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+
+  # pnpm workspaces (root)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+    groups:
+      production:
+        dependency-type: "production"
+      development:
+        dependency-type: "development"
+
+  # Per-app + per-package lockfile tracking
+  - package-ecosystem: "npm"
+    directory: "/apps/web"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(web)"
+    labels:
+      - "dependencies"
+    rebase-strategy: "auto"
+
+  - package-ecosystem: "npm"
+    directory: "/apps/api"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(api)"
+    labels:
+      - "dependencies"
+    rebase-strategy: "auto"
+
+  - package-ecosystem: "npm"
+    directory: "/packages/sdk"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(sdk)"
+    labels:
+      - "dependencies"
+    rebase-strategy: "auto"
+
+  - package-ecosystem: "npm"
+    directory: "/packages/citation-engine"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(citation)"
+    labels:
+      - "dependencies"
+    rebase-strategy: "auto"
+
+  - package-ecosystem: "npm"
+    directory: "/packages/payment-engine"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(payment)"
+    labels:
+      - "dependencies"
+    rebase-strategy: "auto"
+
+  - package-ecosystem: "npm"
+    directory: "/packages/shared"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(shared)"
+    labels:
+      - "dependencies"
+    rebase-strategy: "auto"

@@ -1,0 +1,23 @@
+{
+  "name": "@nanoproof/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Solidity contracts that anchor NanoProof receipts on Arc L1.",
+  "license": "MIT",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "test:gas": "forge test --gas-report",
+    "coverage": "forge coverage",
+    "deploy:testnet": "forge script script/Deploy.s.sol --rpc-url $ARC_RPC_URL --broadcast",
+    "verify": "forge verify-contract",
+    "format": "forge fmt",
+    "lint": "solhint 'src/**/*.sol'",
+    "clean": "forge clean"
+  },
+  "devDependencies": {
+    "forge-std": "github:foundry-rs/forge-std",
+    "@openzeppelin/contracts": "^5.0.0",
+    "solhint": "^5.0.0"
+  }
+}

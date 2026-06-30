@@ -1,0 +1,16 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "contracts"
+
+# Treat these as workspace-level catalogs so version bumps are global.
+catalog:
+  typescript: ^5.5.0
+  zod: ^3.23.0
+  viem: ^2.21.0
+  "@types/node": ^20.14.0
+  eslint: ^9.0.0
+  prettier: ^3.3.0
+  turbo: ^2.0.0
+  vitest: ^2.0.0
+  "@changesets/cli": ^2.27.0

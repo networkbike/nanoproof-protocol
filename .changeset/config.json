@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@2.3.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "bumpVersionsWithWorkspaceProtocolOnly": false,
+  "privatePackages": {
+    "commit": false,
+    "tag": false
+  },
+  "___experimentalUnsafeWorkspaces": [
+    "apps/*",
+    "packages/*",
+    "contracts"
+  ]
+}

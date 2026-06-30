@@ -1,0 +1,15 @@
+node_modules
+dist
+build
+.next
+.turbo
+coverage
+out
+playwright-report
+test-results
+contracts/out
+contracts/broadcast
+contracts/cache
+pnpm-lock.yaml
+*.min.js
+*.min.css

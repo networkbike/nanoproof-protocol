@@ -1,0 +1,12 @@
+# Foundry
+out/
+cache/
+broadcast/
+
+# IDE
+.idea/
+.vscode/
+
+# Coverage
+coverage/
+lcov.info

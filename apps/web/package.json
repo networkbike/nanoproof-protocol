@@ -1,0 +1,45 @@
+{
+  "name": "@nanoproof/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "NanoProof creator dashboard, agent developer portal, and public analytics site.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "clean": "rm -rf .next .turbo out"
+  },
+  "dependencies": {
+    "@nanoproof/shared": "workspace:*",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@clerk/nextjs": "^6.0.0",
+    "@tanstack/react-query": "^5.50.0",
+    "@rainbow-me/rainbowkit": "^2.1.0",
+    "wagmi": "^2.12.0",
+    "viem": "catalog:",
+    "zod": "catalog:",
+    "tailwindcss": "^4.0.0",
+    "@radix-ui/react-slot": "^1.1.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.5.0",
+    "lucide-react": "^0.460.0"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-next": "^15.0.0",
+    "vitest": "catalog:",
+    "@playwright/test": "^1.48.0"
+  }
+}
