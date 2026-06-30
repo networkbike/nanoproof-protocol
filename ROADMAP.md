@@ -83,18 +83,42 @@ See [`docs/phase-2-creator-registry.md`](./docs/phase-2-creator-registry.md) for
 
 **Goal:** Detect citations in any AI response and resolve them to a registered Source.
 
-### Deliverables
-- [ ] `packages/citation-engine` with embedder interface
-- [ ] OpenAI, Cohere, Voyage embedder adapters
-- [ ] URL + DOI + ISBN regex extractor
-- [ ] Embedding similarity scorer with configurable threshold
-- [ ] Resolution client against the Creator Registry
-- [ ] `CitationEngine.extract()` public API with full event log
-- [ ] Unit tests with deterministic fixtures
+### Architecture (complete)
+See [`docs/citation-engine.md`](./docs/citation-engine.md) for the canonical architecture.
+- [`docs/source-fingerprinting.md`](./docs/source-fingerprinting.md) — fingerprinting system.
+- [`docs/attribution-model.md`](./docs/attribution-model.md) — scoring model + worked example.
+- [`docs/fraud-prevention.md`](./docs/fraud-prevention.md) — threat model + 13 defenses.
+- [`docs/analytics.md`](./docs/analytics.md) — protocol metrics + dashboards.
+- [`docs/future-extensions.md`](./docs/future-extensions.md) — Arc / USDC / Circle / x402 / marketplaces / licensing.
+- [`apps/api/prisma/schema.citation-engine.prisma`](./apps/api/prisma/schema.citation-engine.prisma) — append-only schema additions.
+- [`apps/api/openapi/citation-engine.yaml`](./apps/api/openapi/citation-engine.yaml) — OpenAPI 3.1 spec.
+- [`packages/citation-engine/`](./packages/citation-engine/) — `core/`, `scoring/`, `fingerprinting/`, `matching/`, `registry/`, `analytics/`, `types/`, `interfaces/`, `docs/`, `tests/` (each with its own README).
+
+### Implementation issues
+25 implementation tickets live at [`.github/issues/phase-3/`](./.github/issues/phase-3/). See [the index](./.github/issues/phase-3/README.md) for execution order.
+
+### Deliverables (mapped to issues)
+- [ ] Pipeline orchestrator (`P3-001`)
+- [ ] Discovery + Normalization (`P3-002`, `P3-003`)
+- [ ] Multi-signal Matcher + Embedder adapters (`P3-004`, `P3-005`)
+- [ ] Fingerprint Generator + versioning + duplicate detection (`P3-006`, `P3-007`)
+- [ ] Extraction + 5-type Classification (`P3-008`)
+- [ ] AttributionScorer + Policy versioning (`P3-009`, `P3-022`)
+- [ ] CreatorResolver + PaymentQuoter (`P3-010`, `P3-011`)
+- [ ] CitationRecorder (append-only hash chain) (`P3-012`)
+- [ ] Fraud Detection (8 signals + composite) + Dispute queue (`P3-013`, `P3-014`)
+- [ ] Prisma migration + pgvector/HNSW (`P3-015`, `P3-021`)
+- [ ] Shared Zod schemas + NP_* errors (`P3-016`, `P3-025`)
+- [ ] REST controllers for `/v1/citations`, `/v1/attributions`, `/v1/fingerprints` (`P3-017`)
+- [ ] Analytics Indexer + REST analytics (`P3-018`, `P3-019`)
+- [ ] Rate limiting + Embedding cache warming (`P3-020`, `P3-023`)
+- [ ] Full end-to-end acceptance test (`P3-024`)
 
 ### Acceptance
 - Given a 500-word AI response citing 4 sources, the engine emits ≥3 CitationEvents with confidence ≥ 0.78 on a held-out test set.
 - Every emitted event carries an auditable trail (input text, candidates, scores, resolved source).
+- Sum-to-one attribution: every Attribution's contribution fractions sum to 1.0 ± 1e-9.
+- pgvector HNSW index returns top-50 nearest neighbors in <50ms for a registry of 10M+ Sources.
 
 ---
 

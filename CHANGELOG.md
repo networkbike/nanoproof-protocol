@@ -29,6 +29,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 22 implementation tickets under `.github/issues/phase-2/`
 - Updated `apps/api/README.md` with the Phase 2 endpoint map
 
+### Phase 3 — Citation Engine architecture
+- Canonical architecture: `docs/citation-engine.md` (10-stage pipeline, components, latency budget, auditability)
+- Source fingerprinting: `docs/source-fingerprinting.md` (composite hash, version tracking, perceptual hashes, SSRF defense)
+- Attribution model: `docs/attribution-model.md` (5 citation types, 6 weight factors, sum-to-one guarantee, worked example)
+- Fraud prevention: `docs/fraud-prevention.md` (16-attack catalog, 13-layer defense, quarantine + dispute flow)
+- Analytics: `docs/analytics.md` (protocol/creator/source/agent/fraud metrics, dashboards, exports)
+- Future extensions: `docs/future-extensions.md` (Arc, USDC, Circle Agent Stack, x402, marketplaces, licensing)
+- Append-only Prisma additions: `apps/api/prisma/schema.citation-engine.prisma` (Fingerprint, Attribution, Citation, Evidence, Contribution, CreatorMatch, FraudSignal, Dispute, AnalyticsRollup + Postgres triggers)
+- OpenAPI 3.1 spec: `apps/api/openapi/citation-engine.yaml` (citations, attributions, fingerprints, analytics, dispute, fraud)
+- Package subdirectory READMEs: `packages/citation-engine/{core,scoring,fingerprinting,matching,registry,analytics,types,interfaces,docs,tests}/README.md`
+- 25 implementation tickets under `.github/issues/phase-3/`
+
 ### Notes
 - **Pre-alpha.** No application code is shipped yet — see `ROADMAP.md` for the phased build plan.
 - Implementation begins in Phase 2 of the roadmap.

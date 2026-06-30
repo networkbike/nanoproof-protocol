@@ -95,7 +95,35 @@ Phase 3+ adds `citations/`, `payments/`, `agents/`, `analytics/`, `webhooks/`.
 | `/docs` | GET | Swagger UI |
 | `/openapi.yaml` | GET | Canonical OpenAPI 3.1 spec |
 
-The full canonical OpenAPI spec lives at [`openapi/creator-registry.yaml`](./openapi/creator-registry.yaml) and is served at `/openapi.yaml`.
+The Phase 2 canonical OpenAPI spec lives at [`openapi/creator-registry.yaml`](./openapi/creator-registry.yaml) and is served at `/openapi.yaml`. The Phase 3 spec lives at [`openapi/citation-engine.yaml`](./openapi/citation-engine.yaml).
+
+### Citation Engine (Phase 3)
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/v1/citations/analyze` | POST | ApiKey | Analyze an AI response (dry run) |
+| `/v1/citations/record` | POST | ApiKey | Persist an Attribution (atomic write) |
+| `/v1/citations` | GET | ApiKey | List Citations (filterable) |
+| `/v1/citations/:id` | GET | ApiKey | Read a Citation (with Evidence + CreatorMatch) |
+| `/v1/citations/:id/dispute` | POST | Clerk (owner) | File a Creator-raised dispute |
+| `/v1/citations/source/:sourceId` | GET | Public | List Citations of a Source |
+| `/v1/citations/creator/:creatorId` | GET | Clerk (owner) | List Citations received by a Creator |
+| `/v1/attributions/calculate` | POST | ApiKey | Recompute an Attribution under a new policy version |
+| `/v1/attributions/:id` | GET | Public | Read an Attribution |
+| `/v1/fingerprints/generate` | POST | Clerk | Generate a Source fingerprint |
+| `/v1/fingerprints/:id` | GET | Public | Read a Fingerprint |
+| `/v1/fingerprints/by-url` | GET | Public | Lookup by URL |
+| `/v1/fingerprints/by-content/:hash` | GET | Public | Lookup by content hash |
+| `/v1/fingerprints/source/:sourceId` | GET | Public | List Fingerprint versions for a Source |
+| `/v1/analytics/protocol` | GET | Public | Public protocol metrics |
+| `/v1/analytics/top-sources` | GET | Public | Top Sources by citation volume |
+| `/v1/analytics/top-domains` | GET | Public | Top Domains by citation volume |
+| `/v1/analytics/top-creators` | GET | Public | Most-referenced Creators |
+| `/v1/analytics/creator/:id` | GET | Clerk (owner) | Creator-private metrics |
+| `/v1/analytics/source/:id` | GET | Public | Source metrics |
+| `/v1/analytics/agent/:id` | GET | ApiKey | Agent metrics |
+| `/v1/analytics/fraud` | GET | Clerk (operator) | Fraud-detection metrics |
+| `/v1/analytics/export.csv` | GET | Clerk (operator) | Stream CSV export |
 
 ---
 

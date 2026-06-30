@@ -1,0 +1,445 @@
+// =============================================================================
+// NanoProof Protocol — Citation Engine Prisma additions (Phase 3)
+// =============================================================================
+// APPEND-ONLY models for the Citation Engine. All writes are inserts; updates
+// happen via new rows superseding old ones. This is enforced at the application
+// layer — Prisma does not have native append-only, so we codify it in services.
+//
+// New models:
+//   Fingerprint      — canonical identity of a Source at a moment in time
+//   Citation         — one detected citation within an AI response
+//   Attribution      — one record per AI response, links to Citations
+//   Evidence         — raw inputs + scoring components for a Citation
+//   Contribution     — Creator × Citation allocation
+//   CreatorMatch     — resolved Creator + wallet for a Citation
+//   FraudSignal      — fraud-detection signals per Citation
+//   Dispute          — Creator-raised dispute on a Citation
+//   AnalyticsRollup  — materialized aggregate metrics
+//
+// See: docs/citation-engine.md, docs/attribution-model.md,
+//      docs/fraud-prevention.md, docs/source-fingerprinting.md
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum CitationKind {
+  DIRECT          // quoted / verbatim
+  INDIRECT        // clear paraphrase
+  SUPPORTING      // cited as background reference
+  REFERENCE       // listed in bibliography without discussion
+  CONTEXT         // mentioned in passing
+}
+
+enum CitationPayoutStatus {
+  PENDING         // pipeline still running
+  QUOTED          // quote generated, not yet executed
+  ESCROW          // funds in 7-day holding period
+  SETTLED         // USDC paid out on Arc
+  CAPPED          // period cap reached; rolled to credit
+  DISPUTED        // Creator raised dispute; held
+  CLAWED_BACK     // operator-confirmed abuse; funds reclaimed
+  FAILED          // execution failed
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED_FOR_CREATOR
+  RESOLVED_FOR_AGENT
+  WITHDRAWN
+}
+
+enum DisputeReason {
+  WRONG_ATTRIBUTION
+  NOT_MY_WORK
+  QUALITY_MISMATCH
+  DUPLICATE_CITATION
+  SUSPECTED_ABUSE
+  OTHER
+}
+
+enum FraudSignalKind {
+  IP_RISK
+  AGENT_REPUTATION
+  NOVELTY
+  CANDIDATE_DIVERSITY
+  FINGERPRINT_AGE
+  AUTHORSHIP_CONFLICT
+  BURST_RATE
+  PERIOD_CAP_NEAR
+}
+
+// -----------------------------------------------------------------------------
+// Fingerprint — versioned identity of a Source
+// -----------------------------------------------------------------------------
+
+model Fingerprint {
+  id              String   @id @default(cuid()) // "fp_<ulid>"
+
+  sourceId        String
+  version         Int      // monotonic per source
+
+  status          String   @default("CURRENT")  // CURRENT | SUPERSEDED
+
+  // Component hashes
+  contentHash     String
+  perceptualHash  String?
+  compositeHash   String   @unique // sha256 of canonicalized fingerprint, 8-char prefix
+
+  // Normalized URL / domain / title
+  urlCanonical    String
+  domainCanonical String
+  titleCanonical  String
+
+  // Structured metadata
+  metadata        Json     @default("{}")
+
+  // Embedding (computed lazily)
+  embedding       Unsupported("vector(1536)")?
+  embeddingModel  String?
+  embeddedAt      DateTime?
+
+  // Fetch provenance
+  contentFetchedAt DateTime
+  contentBytes     Int
+  httpStatus       Int?
+  finalUrl         String?
+
+  // Versioning
+  policyVersion   String   @default("fp.v1.0.0")
+
+  createdAt       DateTime @default(now())
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, version])
+  @@index([sourceId, status])
+  @@index([contentHash])
+  @@index([compositeHash])
+  @@index([domainCanonical])
+  @@map("fingerprints")
+}
+
+// -----------------------------------------------------------------------------
+// Attribution — one per AI response analyzed
+// -----------------------------------------------------------------------------
+
+model Attribution {
+  id              String   @id @default(cuid()) // "at_<ulid>"
+  responseId      String   // agent-supplied UUID for the AI response
+  agentId         String
+  modelId         String?  // LLM model id (gpt-4o, claude-3.5, etc.)
+  promptHash      String?  // sha256 of the user query (PII-safe)
+  responseHash    String?  // sha256 of the response text
+
+  // Status lifecycle
+  payoutStatus    CitationPayoutStatus @default(PENDING)
+  totalPayoutUsdc String   @default("0") // sum across all Creator allocations
+
+  // Versioning
+  attributionPolicyVersion String @default("am.v1.0.0")
+  enginePolicyVersion      String @default("ce.v3.2.1")
+  fingerprintPolicyVersion String @default("fp.v1.0.0")
+
+  // Timestamps
+  analyzedAt      DateTime @default(now())
+  settledAt       DateTime?
+
+  // Idempotency
+  idempotencyKey  String?  @unique
+
+  citations       Citation[]
+  contributions   Contribution[]
+  creatorMatches  CreatorMatch[]
+  evidences       Evidence[]
+
+  @@index([responseId])
+  @@index([agentId, analyzedAt])
+  @@index([payoutStatus])
+  @@map("attributions")
+}
+
+// -----------------------------------------------------------------------------
+// Citation — one per detected citation within a response
+// -----------------------------------------------------------------------------
+
+model Citation {
+  id              String         @id @default(cuid()) // "cit_<ulid>"
+  attributionId   String
+
+  // The matched source (null if unresolved)
+  sourceId        String?
+  source          Source?        @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  fingerprintId   String?
+  fingerprint     Fingerprint?   @relation(fields: [fingerprintId], references: [id], onDelete: SetNull)
+
+  // Classification
+  kind            CitationKind
+
+  // Match scoring (audit fields)
+  matchScore      String         // 0..1, recorded as string for determinism
+  confidence      String         // = matchScore rounded to 2 dp
+
+  // Component breakdown
+  wCite           String         // base weight by kind
+  wRel            String         // query relevance
+  wConf           String         // match confidence
+  wQual           String         // quality
+  wDiversity      String         // diversity
+  wRecency        String         // recency decay
+
+  // Computed
+  rawScore        String         // full component product
+  basePriceUsdc   String         // Creator's per-source price at moment of attribution
+
+  // Cited span
+  snippet         String         @db.Text
+  contextBefore   String?        @db.Text
+  contextAfter    String?        @db.Text
+  paragraphIndex  Int?
+  charStart       Int?
+  charEnd         Int?
+
+  // Lifecycle
+  payoutStatus    CitationPayoutStatus @default(PENDING)
+
+  // Append-only enforcement field
+  prevHash        String?        // hash of the prior citation row
+  rowHash         String         // sha256(prevHash || canonical(this row))
+
+  recordedAt      DateTime       @default(now())
+
+  attribution     Attribution    @relation(fields: [attributionId], references: [id], onDelete: Cascade)
+  contribution    Contribution?
+  creatorMatch    CreatorMatch?
+  evidence        Evidence?
+  fraudSignals    FraudSignal[]
+  disputes        Dispute[]
+
+  @@index([sourceId])
+  @@index([attributionId])
+  @@index([payoutStatus])
+  @@index([recordedAt])
+  @@index([sourceId, payoutStatus, recordedAt])
+  @@map("citations")
+}
+
+// -----------------------------------------------------------------------------
+// Evidence — raw inputs + scoring components for a Citation
+// -----------------------------------------------------------------------------
+
+model Evidence {
+  id              String   @id @default(cuid()) // "ev_<ulid>"
+  attributionId   String
+  citationId      String   @unique
+
+  // Candidate references considered
+  candidates      Json     // CandidateReference[]
+
+  // Normalization details
+  normalizations  Json     // NormalizedReference[]
+
+  // Match signals (full breakdown)
+  matchSignals    Json     // { urlExact, embeddingSim, titleSim, metadataSim, doiExact, fraudPenalty }
+
+  // The cited span as classified
+  classifierOutput Json    // { kind, rationale, alternatives }
+
+  // Policy version used
+  policyVersion   String   @default("ce.v3.2.1")
+
+  createdAt       DateTime @default(now())
+
+  attribution     Attribution @relation(fields: [attributionId], references: [id], onDelete: Cascade)
+  citation        Citation    @relation(fields: [citationId], references: [id], onDelete: Cascade)
+
+  @@map("evidences")
+}
+
+// -----------------------------------------------------------------------------
+// Contribution — Creator × Citation allocation
+// -----------------------------------------------------------------------------
+
+model Contribution {
+  id                    String   @id @default(cuid()) // "ct_<ulid>"
+  attributionId         String
+  citationId            String   @unique
+  creatorId             String   // resolved Creator
+
+  // Attribution fractions (sum across a response = 1.0)
+  contributionFraction  String   // 0..1
+  payoutAmountUsdc      String   // atomic USDC for this Citation × Creator
+
+  // Payout lifecycle
+  payoutStatus          CitationPayoutStatus @default(PENDING)
+  payoutTxHash          String?  // Arc tx hash once settled
+  payoutArcScanUrl      String?
+  payoutSettledAt       DateTime?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  attribution           Attribution @relation(fields: [attributionId], references: [id], onDelete: Cascade)
+  citation              Citation    @relation(fields: [citationId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId, payoutStatus])
+  @@index([attributionId])
+  @@map("contributions")
+}
+
+// -----------------------------------------------------------------------------
+// CreatorMatch — resolved Creator + wallet for a Citation
+// -----------------------------------------------------------------------------
+
+model CreatorMatch {
+  id              String   @id @default(cuid()) // "cm_<ulid>"
+  attributionId   String
+  citationId      String   @unique
+
+  // Resolved entities
+  sourceId        String
+  creatorId       String
+  walletId        String?
+  organizationId  String?
+
+  // Resolution path (audit)
+  resolutionPath  Json     // { sourceType, ownershipKind, splitsApplied, ... }
+
+  // Royalty splits applied at this point in time
+  splits          Json     @default("[]") // [{ walletId, basisPoints }]
+
+  confidence      String   // 0..1, resolution confidence
+  warnings        String[] @default([]) // ["OWNERSHIP_DISPUTED", "SPLITS_MISSING", ...]
+
+  createdAt       DateTime @default(now())
+
+  attribution     Attribution @relation(fields: [attributionId], references: [id], onDelete: Cascade)
+  citation        Citation    @relation(fields: [citationId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@index([sourceId])
+  @@map("creator_matches")
+}
+
+// -----------------------------------------------------------------------------
+// FraudSignal — fraud-detection signals per Citation
+// -----------------------------------------------------------------------------
+
+model FraudSignal {
+  id              String          @id @default(cuid()) // "fs_<ulid>"
+  citationId      String
+
+  kind            FraudSignalKind
+  score           String          // 0..1
+  weight          String          // contribution to the composite fraud score
+  detail          Json            // structured explanation
+
+  createdAt       DateTime        @default(now())
+
+  citation        Citation        @relation(fields: [citationId], references: [id], onDelete: Cascade)
+
+  @@index([citationId])
+  @@index([kind])
+  @@map("fraud_signals")
+}
+
+// -----------------------------------------------------------------------------
+// Dispute — Creator-raised dispute on a Citation
+// -----------------------------------------------------------------------------
+
+model Dispute {
+  id              String         @id @default(cuid()) // "dp_<ulid>"
+  citationId      String
+  raisedByCreatorId String       // Creator raising the dispute
+
+  reason          DisputeReason
+  description     String         @db.Text
+
+  status          DisputeStatus  @default(OPEN)
+  resolution      String?        @db.Text
+  resolvedByUserId String?       // operator who resolved
+
+  payoutFrozen    Boolean        @default(true) // freeze escrow while dispute is open
+
+  createdAt       DateTime       @default(now())
+  resolvedAt      DateTime?
+
+  citation        Citation       @relation(fields: [citationId], references: [id], onDelete: Cascade)
+
+  @@index([citationId])
+  @@index([status])
+  @@index([raisedByCreatorId])
+  @@map("disputes")
+}
+
+// -----------------------------------------------------------------------------
+// AnalyticsRollup — materialized aggregate metrics
+// -----------------------------------------------------------------------------
+
+model AnalyticsRollup {
+  id              String   @id @default(cuid()) // "ar_<ulid>"
+
+  // Time bucket
+  bucket          String   // "hour" | "day" | "week" | "month"
+  bucketStart     DateTime
+  bucketEnd       DateTime
+
+  // Scope
+  scope           String   // "protocol" | "creator:<id>" | "source:<id>" | "agent:<id>"
+  scopeId         String?  // populated for non-protocol scopes
+
+  // Metrics
+  citationsTotal         Int    @default(0)
+  citationsVerified      Int    @default(0)
+  citationsQuarantined   Int    @default(0)
+  citationsDisputed      Int    @default(0)
+  citationsSettled       Int    @default(0)
+  usdcPaidTotal          String @default("0")
+  usdcEscrowHeld         String @default("0")
+  usdcClawedBack         String @default("0")
+  attributionAccuracy    String @default("1.0")
+  matchScoreP50          String @default("0")
+  matchScoreP99          String @default("0")
+  latencyP50Ms           Int    @default(0)
+  latencyP99Ms           Int    @default(0)
+  fraudEvents            Int    @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([bucket, bucketStart, scope])
+  @@index([scope, bucketStart])
+  @@map("analytics_rollups")
+}
+
+// -----------------------------------------------------------------------------
+// Append-only enforcement helpers (Phase 3+)
+//
+// Add a database trigger to enforce append-only on citations, attributions,
+// contributions, evidences. Application-level enforcement alone is insufficient.
+// -----------------------------------------------------------------------------
+//
+// CREATE OR REPLACE FUNCTION enforce_append_only()
+// RETURNS TRIGGER AS $$
+// BEGIN
+//   RAISE EXCEPTION 'Table % is append-only; UPDATE forbidden', TG_TABLE_NAME;
+// END;
+// $$ LANGUAGE plpgsql;
+//
+// CREATE TRIGGER citations_append_only
+//   BEFORE UPDATE ON citations
+//   FOR EACH ROW EXECUTE FUNCTION enforce_append_only();
+//
+// (Equivalent triggers for attributions, contributions, evidences.)
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Source ↔ Fingerprint / Citation relations (additive — extend the Phase 2
+// Source model without rewriting it).
+// -----------------------------------------------------------------------------
+// Add to Source:
+//   fingerprints  Fingerprint[]
+//   citations     Citation[]

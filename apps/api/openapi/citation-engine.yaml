@@ -1,0 +1,1194 @@
+openapi: 3.1.0
+info:
+  title: NanoProof Citation Engine API
+  version: 0.3.0
+  summary: Citation detection, attribution, and recording for AI agents.
+  description: |
+    REST API for the NanoProof Citation Engine. Phase 3 surface.
+    See `docs/citation-engine.md`, `docs/attribution-model.md`,
+    `docs/source-fingerprinting.md`, `docs/fraud-prevention.md`,
+    `docs/analytics.md`.
+
+    Errors use the `NP_*` catalog defined in `@nanoproof/shared/errors`.
+  contact:
+    name: NanoProof Protocol
+    email: ops@nanoproof.xyz
+    url: https://github.com/networkbike/nanoproof-protocol
+  license:
+    name: MIT
+    url: https://github.com/networkbike/nanoproof-protocol/blob/main/LICENSE
+
+servers:
+  - url: https://api.nanoproof.xyz
+    description: Production
+  - url: https://staging.nanoproof.xyz
+    description: Staging
+  - url: http://localhost:4000
+    description: Local development
+
+tags:
+  - name: Citations
+    description: Analyze + record citations from AI responses.
+  - name: Attributions
+    description: Compute + read attribution summaries.
+  - name: Fingerprints
+    description: Generate + lookup Source fingerprints.
+  - name: Analytics
+    description: Protocol, creator, source, agent, fraud metrics.
+
+security:
+  - ApiKeyAuth: []
+  - ClerkAuth: []
+  - {}
+
+paths:
+
+  # ============================ Citations ===================================
+
+  /v1/citations/analyze:
+    post:
+      tags: [Citations]
+      operationId: analyzeCitations
+      summary: Analyze an AI response and emit CitationEvents (dry run; no DB writes).
+      description: |
+        Runs the full pipeline (Discovery → Normalization → Matching →
+        Extraction → Scoring → Resolution → Quoting) but **does not persist**.
+        Use this to preview an Attribution before committing via
+        `POST /v1/citations/record`.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeCitationsRequest'
+      responses:
+        '200':
+          description: Preview complete.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzeCitationsResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /v1/citations/record:
+    post:
+      tags: [Citations]
+      operationId: recordCitations
+      summary: Persist an Attribution (atomic write).
+      description: |
+        Same input shape as `/analyze`, but persists Attribution + Citations +
+        Evidences + Contributions + CreatorMatches + Fingerprints in a single
+        transaction. Returns the persisted Attribution.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeCitationsRequest'
+      responses:
+        '201':
+          description: Attribution persisted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attribution'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/citations:
+    get:
+      tags: [Citations]
+      operationId: listCitations
+      summary: List Citations (paginated, filterable).
+      parameters:
+        - in: query
+          name: sourceId
+          schema: { type: string }
+        - in: query
+          name: agentId
+          schema: { type: string }
+        - in: query
+          name: creatorId
+          schema: { type: string }
+        - in: query
+          name: payoutStatus
+          schema:
+            $ref: '#/components/schemas/CitationPayoutStatus'
+        - in: query
+          name: kind
+          schema:
+            $ref: '#/components/schemas/CitationKind'
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Page of Citations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationPage'
+
+  /v1/citations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CitationId'
+    get:
+      tags: [Citations]
+      operationId: getCitation
+      summary: Read a Citation (with Evidence + CreatorMatch).
+      responses:
+        '200':
+          description: Citation detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationDetail'
+        '404':
+          $ref: '#/components/responses/CitationNotFound'
+
+  /v1/citations/{id}/dispute:
+    parameters:
+      - $ref: '#/components/parameters/CitationId'
+    post:
+      tags: [Citations]
+      operationId: disputeCitation
+      summary: Creator-raised dispute on a Citation.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisputeRequest'
+      responses:
+        '201':
+          description: Dispute opened.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dispute'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/CitationNotFound'
+
+  /v1/citations/source/{sourceId}:
+    parameters:
+      - in: path
+        name: sourceId
+        required: true
+        schema: { type: string, pattern: '^src_[a-z0-9]+$' }
+    get:
+      tags: [Citations]
+      operationId: listCitationsBySource
+      summary: List Citations of a Source.
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200':
+          description: Page of Citations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationPage'
+
+  /v1/citations/creator/{creatorId}:
+    parameters:
+      - in: path
+        name: creatorId
+        required: true
+        schema: { type: string, pattern: '^cr_[a-z0-9]+$' }
+    get:
+      tags: [Citations]
+      operationId: listCitationsByCreator
+      summary: List Citations received by a Creator (across all their Sources).
+      security:
+        - ClerkAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200':
+          description: Page of Citations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationPage'
+
+  # ============================ Attributions ================================
+
+  /v1/attributions/calculate:
+    post:
+      tags: [Attributions]
+      operationId: calculateAttribution
+      summary: Recompute an Attribution under a different policy version.
+      description: |
+        Replays an Attribution under a specified (or current) policy version
+        and returns the new fractions + payouts. Does NOT mutate the original.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [attributionId]
+              properties:
+                attributionId: { type: string }
+                policyVersion:
+                  type: string
+                  description: "If omitted, uses the current default."
+      responses:
+        '200':
+          description: Recomputed Attribution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttributionRecomputeResponse'
+
+  /v1/attributions/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^at_[a-z0-9]+$' }
+    get:
+      tags: [Attributions]
+      operationId: getAttribution
+      summary: Read an Attribution (with Citations).
+      responses:
+        '200':
+          description: Attribution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttributionDetail'
+        '404':
+          $ref: '#/components/responses/AttributionNotFound'
+
+  # ============================ Fingerprints ================================
+
+  /v1/fingerprints/generate:
+    post:
+      tags: [Fingerprints]
+      operationId: generateFingerprint
+      summary: Generate a Source fingerprint (server-side; reads from a verified URL).
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateFingerprintRequest'
+      responses:
+        '201':
+          description: Fingerprint created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fingerprint'
+        '409':
+          description: Fingerprint with same composite hash already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/fingerprints/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^fp_[a-z0-9]+$' }
+    get:
+      tags: [Fingerprints]
+      operationId: getFingerprint
+      summary: Read a Fingerprint.
+      responses:
+        '200':
+          description: Fingerprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fingerprint'
+
+  /v1/fingerprints/by-url:
+    get:
+      tags: [Fingerprints]
+      operationId: lookupFingerprintByUrl
+      summary: Find the current Fingerprint for a canonical URL.
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema: { type: string, format: uri }
+      responses:
+        '200':
+          description: Fingerprint (or 404).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fingerprint'
+        '404':
+          $ref: '#/components/responses/FingerprintNotFound'
+
+  /v1/fingerprints/by-content/{hash}:
+    parameters:
+      - in: path
+        name: hash
+        required: true
+        schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+    get:
+      tags: [Fingerprints]
+      operationId: lookupFingerprintByContent
+      summary: Find a Fingerprint by content hash.
+      responses:
+        '200':
+          description: Fingerprint list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Fingerprint'
+
+  /v1/fingerprints/source/{sourceId}:
+    parameters:
+      - in: path
+        name: sourceId
+        required: true
+        schema: { type: string, pattern: '^src_[a-z0-9]+$' }
+    get:
+      tags: [Fingerprints]
+      operationId: listFingerprintsBySource
+      summary: List all Fingerprints (versions) for a Source.
+      responses:
+        '200':
+          description: List of Fingerprints (newest first).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Fingerprint'
+
+  # ============================ Analytics ===================================
+
+  /v1/analytics/protocol:
+    get:
+      tags: [Analytics]
+      operationId: getProtocolAnalytics
+      summary: Public protocol-wide metrics.
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: bucket
+          schema: { type: string, enum: [hour, day, week, month], default: day }
+      responses:
+        '200':
+          description: Protocol metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtocolAnalytics'
+
+  /v1/analytics/top-sources:
+    get:
+      tags: [Analytics]
+      operationId: getTopSources
+      summary: Top Sources by citation volume.
+      parameters:
+        - in: query
+          name: window
+          schema: { type: string, enum: ["24h", "7d", "30d", "all"], default: "7d" }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+      responses:
+        '200':
+          description: Top Sources.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SourceAnalytics'
+
+  /v1/analytics/top-domains:
+    get:
+      tags: [Analytics]
+      operationId: getTopDomains
+      summary: Top Domains by citation volume.
+      parameters:
+        - in: query
+          name: window
+          schema: { type: string, enum: ["24h", "7d", "30d", "all"], default: "7d" }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+      responses:
+        '200':
+          description: Top Domains.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DomainAnalytics'
+
+  /v1/analytics/top-creators:
+    get:
+      tags: [Analytics]
+      operationId: getTopCreators
+      summary: Most-referenced Creators.
+      parameters:
+        - in: query
+          name: window
+          schema: { type: string, enum: ["24h", "7d", "30d", "all"], default: "7d" }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+      responses:
+        '200':
+          description: Top Creators.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CreatorAnalytics'
+
+  /v1/analytics/creator/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^cr_[a-z0-9]+$' }
+    get:
+      tags: [Analytics]
+      operationId: getCreatorAnalytics
+      summary: Creator-private metrics.
+      security:
+        - ClerkAuth: []
+      responses:
+        '200':
+          description: Creator metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatorAnalyticsDetail'
+
+  /v1/analytics/source/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^src_[a-z0-9]+$' }
+    get:
+      tags: [Analytics]
+      operationId: getSourceAnalytics
+      summary: Source metrics.
+      responses:
+        '200':
+          description: Source metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceAnalyticsDetail'
+
+  /v1/analytics/agent/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Analytics]
+      operationId: getAgentAnalytics
+      summary: Agent metrics (agent-authenticated).
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Agent metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentAnalytics'
+
+  /v1/analytics/fraud:
+    get:
+      tags: [Analytics]
+      operationId: getFraudAnalytics
+      summary: Fraud-detection metrics (operator-authenticated).
+      security:
+        - ClerkAuth: []
+      responses:
+        '200':
+          description: Fraud metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FraudAnalytics'
+
+  /v1/analytics/export.csv:
+    get:
+      tags: [Analytics]
+      operationId: exportAnalyticsCsv
+      summary: Stream a CSV export of Citation + Attribution rows.
+      security:
+        - ClerkAuth: []
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: scope
+          schema: { type: string, enum: [citations, attributions, contributions] }
+      responses:
+        '200':
+          description: CSV stream.
+          content:
+            text/csv:
+              schema:
+                type: string
+
+# -----------------------------------------------------------------------------
+# Components
+# -----------------------------------------------------------------------------
+components:
+
+  securitySchemes:
+    ClerkAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: custom
+      description: '`np_live_xxx...` API key issued to the agent developer or Creator.'
+
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      schema: { type: string, maxLength: 200 }
+    CitationId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, pattern: '^cit_[a-z0-9]+$' }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid auth.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Authenticated but not authorized.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationError:
+      description: Zod validation failed.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidationErrorResponse' }
+    RateLimited:
+      description: Rate limit exceeded.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    CitationNotFound:
+      description: Citation not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    AttributionNotFound:
+      description: Attribution not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    FingerprintNotFound:
+      description: Fingerprint not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+
+    # ---------- Common ------------------------------------------------------
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: NP_CITATION_NOT_FOUND }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+
+    ValidationErrorResponse:
+      type: object
+      required: [code, message, issues]
+      properties:
+        code: { type: string, example: NP_VALIDATION_FAILED }
+        message: { type: string }
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              path: { type: string }
+              message: { type: string }
+              code: { type: string }
+
+    CursorPage:
+      type: object
+      required: [data, hasMore]
+      properties:
+        data:
+          type: array
+          items: {}
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore: { type: boolean }
+
+    # ---------- Citations ---------------------------------------------------
+
+    CitationKind:
+      type: string
+      enum: [DIRECT, INDIRECT, SUPPORTING, REFERENCE, CONTEXT]
+
+    CitationPayoutStatus:
+      type: string
+      enum:
+        - PENDING
+        - QUOTED
+        - ESCROW
+        - SETTLED
+        - CAPPED
+        - DISPUTED
+        - CLAWED_BACK
+        - FAILED
+
+    AnalyzeCitationsRequest:
+      type: object
+      required: [responseId, responseText, citations]
+      properties:
+        responseId:
+          type: string
+          description: Agent-supplied UUID for the AI response.
+        responseText:
+          type: string
+          description: Full text of the AI response.
+          maxLength: 50000
+        citations:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/CandidateReference'
+        modelId:
+          type: string
+          description: LLM model id (e.g. "gpt-4o", "claude-3.5-sonnet")
+        promptHash:
+          type: string
+          description: SHA-256 of the user query (PII-safe).
+        metadata:
+          type: object
+          additionalProperties: true
+
+    CandidateReference:
+      type: object
+      required: [rawCitation, kind]
+      properties:
+        rawCitation: { type: string }
+        kind:
+          type: string
+          enum: [URL, DOI, ISBN, TITLE, AUTHOR, DATASET, PARAPHRASE]
+        context:
+          type: object
+          properties:
+            beforeText: { type: string }
+            afterText: { type: string }
+            sectionHeading: { type: string }
+        locator:
+          type: object
+          properties:
+            paragraphIndex: { type: integer }
+            charStart: { type: integer }
+            charEnd: { type: integer }
+            lineNumber: { type: integer }
+
+    AnalyzeCitationsResponse:
+      type: object
+      required: [citations, totalPayoutUsdc, attributionPolicyVersion]
+      properties:
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/CitationPreview'
+        totalPayoutUsdc: { type: string, example: "12000" }
+        attributionPolicyVersion: { type: string, example: "am.v1.0.0" }
+        enginePolicyVersion: { type: string, example: "ce.v3.2.1" }
+        unresolvedCount: { type: integer }
+
+    CitationPreview:
+      type: object
+      required: [kind, snippet, matchScore, confidence, contributionFraction, payoutUsdc]
+      properties:
+        sourceId: { type: string, nullable: true }
+        fingerprintId: { type: string, nullable: true }
+        creatorId: { type: string, nullable: true }
+        kind: { $ref: '#/components/schemas/CitationKind' }
+        snippet: { type: string }
+        matchScore: { type: string, example: "0.91" }
+        confidence: { type: string, example: "0.91" }
+        contributionFraction: { type: string, example: "0.45" }
+        payoutUsdc: { type: string, example: "4500" }
+        warnings:
+          type: array
+          items: { type: string }
+
+    Citation:
+      type: object
+      required: [id, attributionId, kind, matchScore, rawScore, snippet, payoutStatus, recordedAt]
+      properties:
+        id: { type: string, example: cit_01HXY... }
+        attributionId: { type: string }
+        sourceId: { type: string, nullable: true }
+        fingerprintId: { type: string, nullable: true }
+        kind: { $ref: '#/components/schemas/CitationKind' }
+        matchScore: { type: string }
+        confidence: { type: string }
+        wCite: { type: string }
+        wRel: { type: string }
+        wConf: { type: string }
+        wQual: { type: string }
+        wDiversity: { type: string }
+        wRecency: { type: string }
+        rawScore: { type: string }
+        basePriceUsdc: { type: string }
+        snippet: { type: string }
+        contextBefore: { type: string, nullable: true }
+        contextAfter: { type: string, nullable: true }
+        payoutStatus: { $ref: '#/components/schemas/CitationPayoutStatus' }
+        rowHash: { type: string }
+        recordedAt: { type: string, format: date-time }
+
+    CitationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Citation'
+        - type: object
+          properties:
+            evidence:
+              $ref: '#/components/schemas/Evidence'
+            creatorMatch:
+              $ref: '#/components/schemas/CreatorMatch'
+            contribution:
+              $ref: '#/components/schemas/Contribution'
+
+    CitationPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Citation'
+
+    DisputeRequest:
+      type: object
+      required: [reason, description]
+      properties:
+        reason:
+          type: string
+          enum: [WRONG_ATTRIBUTION, NOT_MY_WORK, QUALITY_MISMATCH, DUPLICATE_CITATION, SUSPECTED_ABUSE, OTHER]
+        description:
+          type: string
+          minLength: 20
+          maxLength: 2000
+
+    Dispute:
+      type: object
+      required: [id, citationId, raisedByCreatorId, reason, status, createdAt]
+      properties:
+        id: { type: string, example: dp_01HXY... }
+        citationId: { type: string }
+        raisedByCreatorId: { type: string }
+        reason: { type: string }
+        description: { type: string }
+        status:
+          type: string
+          enum: [OPEN, UNDER_REVIEW, RESOLVED_FOR_CREATOR, RESOLVED_FOR_AGENT, WITHDRAWN]
+        resolution: { type: string, nullable: true }
+        payoutFrozen: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+
+    # ---------- Attributions ------------------------------------------------
+
+    Attribution:
+      type: object
+      required: [id, responseId, agentId, payoutStatus, totalPayoutUsdc, attributionPolicyVersion, analyzedAt]
+      properties:
+        id: { type: string, example: at_01HXY... }
+        responseId: { type: string }
+        agentId: { type: string }
+        modelId: { type: string, nullable: true }
+        promptHash: { type: string, nullable: true }
+        responseHash: { type: string, nullable: true }
+        payoutStatus: { $ref: '#/components/schemas/CitationPayoutStatus' }
+        totalPayoutUsdc: { type: string, example: "12000" }
+        attributionPolicyVersion: { type: string, example: "am.v1.0.0" }
+        enginePolicyVersion: { type: string, example: "ce.v3.2.1" }
+        fingerprintPolicyVersion: { type: string, example: "fp.v1.0.0" }
+        analyzedAt: { type: string, format: date-time }
+        settledAt: { type: string, format: date-time, nullable: true }
+
+    AttributionDetail:
+      allOf:
+        - $ref: '#/components/schemas/Attribution'
+        - type: object
+          properties:
+            citations:
+              type: array
+              items:
+                $ref: '#/components/schemas/Citation'
+            contributions:
+              type: array
+              items:
+                $ref: '#/components/schemas/Contribution'
+            creatorMatches:
+              type: array
+              items:
+                $ref: '#/components/schemas/CreatorMatch'
+
+    AttributionRecomputeResponse:
+      type: object
+      required: [attributionId, fractions, totalPayoutUsdc, policyVersion, delta]
+      properties:
+        attributionId: { type: string }
+        fractions:
+          type: array
+          items:
+            type: object
+            properties:
+              citationId: { type: string }
+              oldFraction: { type: string }
+              newFraction: { type: string }
+        totalPayoutUsdc: { type: string }
+        policyVersion: { type: string }
+        delta:
+          type: object
+          properties:
+            maxFractionDelta: { type: string }
+            totalPayoutDeltaUsdc: { type: string }
+
+    # ---------- Fingerprints ------------------------------------------------
+
+    GenerateFingerprintRequest:
+      type: object
+      required: [sourceId]
+      properties:
+        sourceId: { type: string }
+        forceRefresh:
+          type: boolean
+          default: false
+
+    Fingerprint:
+      type: object
+      required: [id, sourceId, version, status, contentHash, compositeHash, urlCanonical, domainCanonical, titleCanonical, contentFetchedAt, policyVersion, createdAt]
+      properties:
+        id: { type: string, example: fp_01HXY... }
+        sourceId: { type: string }
+        version: { type: integer }
+        status: { type: string, enum: [CURRENT, SUPERSEDED] }
+        contentHash: { type: string, example: "a1b2c3..." }
+        perceptualHash: { type: string, nullable: true }
+        compositeHash: { type: string, example: "a1b2c3d4" }
+        urlCanonical: { type: string }
+        domainCanonical: { type: string }
+        titleCanonical: { type: string }
+        metadata:
+          type: object
+          additionalProperties: true
+        embeddingModel: { type: string, nullable: true }
+        embeddedAt: { type: string, format: date-time, nullable: true }
+        contentFetchedAt: { type: string, format: date-time }
+        contentBytes: { type: integer }
+        httpStatus: { type: integer, nullable: true }
+        finalUrl: { type: string, nullable: true }
+        policyVersion: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    # ---------- Evidence / Match --------------------------------------------
+
+    Evidence:
+      type: object
+      required: [id, citationId, candidates, normalizations, matchSignals, classifierOutput, policyVersion]
+      properties:
+        id: { type: string }
+        citationId: { type: string }
+        candidates:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        normalizations:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        matchSignals:
+          type: object
+          properties:
+            urlExact: { type: string }
+            embeddingSim: { type: string }
+            titleSim: { type: string }
+            metadataSim: { type: string }
+            doiExact: { type: string }
+            fraudPenalty: { type: string }
+        classifierOutput:
+          type: object
+          properties:
+            kind: { $ref: '#/components/schemas/CitationKind' }
+            rationale: { type: string }
+            alternatives:
+              type: array
+              items:
+                type: object
+                properties:
+                  kind: { type: string }
+                  confidence: { type: string }
+        policyVersion: { type: string }
+
+    CreatorMatch:
+      type: object
+      required: [id, citationId, sourceId, creatorId, resolutionPath, splits, confidence]
+      properties:
+        id: { type: string }
+        citationId: { type: string }
+        sourceId: { type: string }
+        creatorId: { type: string }
+        walletId: { type: string, nullable: true }
+        organizationId: { type: string, nullable: true }
+        resolutionPath:
+          type: object
+          properties:
+            sourceType: { type: string, enum: [direct, organization, disputed] }
+            ownershipKind: { type: string }
+            splitsApplied: { type: boolean }
+        splits:
+          type: array
+          items:
+            type: object
+            properties:
+              walletId: { type: string }
+              basisPoints: { type: integer }
+        confidence: { type: string }
+        warnings:
+          type: array
+          items: { type: string }
+
+    Contribution:
+      type: object
+      required: [id, attributionId, citationId, creatorId, contributionFraction, payoutAmountUsdc, payoutStatus]
+      properties:
+        id: { type: string }
+        attributionId: { type: string }
+        citationId: { type: string }
+        creatorId: { type: string }
+        contributionFraction: { type: string }
+        payoutAmountUsdc: { type: string }
+        payoutStatus: { $ref: '#/components/schemas/CitationPayoutStatus' }
+        payoutTxHash: { type: string, nullable: true }
+        payoutArcScanUrl: { type: string, nullable: true }
+        payoutSettledAt: { type: string, format: date-time, nullable: true }
+
+    # ---------- Analytics ---------------------------------------------------
+
+    ProtocolAnalytics:
+      type: object
+      required: [bucket, series]
+      properties:
+        bucket:
+          type: string
+          enum: [hour, day, week, month]
+        series:
+          type: array
+          items:
+            type: object
+            properties:
+              bucketStart: { type: string, format: date-time }
+              citationsTotal: { type: integer }
+              citationsVerified: { type: integer }
+              citationsQuarantined: { type: integer }
+              citationsDisputed: { type: integer }
+              usdcPaidTotal: { type: string }
+              usdcEscrowHeld: { type: string }
+              attributionAccuracy: { type: string }
+              matchScoreP50: { type: string }
+              matchScoreP99: { type: string }
+              fraudEvents: { type: integer }
+
+    SourceAnalytics:
+      type: object
+      required: [sourceId, citationsTotal]
+      properties:
+        sourceId: { type: string }
+        title: { type: string }
+        domain: { type: string }
+        creatorId: { type: string }
+        citationsTotal: { type: integer }
+        usdcEarnedTotal: { type: string }
+        matchScoreP50: { type: string }
+
+    DomainAnalytics:
+      type: object
+      required: [domain, citationsTotal]
+      properties:
+        domain: { type: string }
+        citationsTotal: { type: integer }
+        usdcPaidTotal: { type: string }
+        activeSources: { type: integer }
+
+    CreatorAnalytics:
+      type: object
+      required: [creatorId, citationsTotal]
+      properties:
+        creatorId: { type: string }
+        username: { type: string }
+        citationsTotal: { type: integer }
+        usdcEarnedTotal: { type: string }
+        activeSources: { type: integer }
+        reputationScore: { type: integer }
+
+    CreatorAnalyticsDetail:
+      allOf:
+        - $ref: '#/components/schemas/CreatorAnalytics'
+        - type: object
+          properties:
+            citationsLast24h: { type: integer }
+            citationsLast7d: { type: integer }
+            usdcEarnedLast24h: { type: string }
+            usdcEarnedLast7d: { type: string }
+            periodCapUtilization: { type: string }
+            topSources:
+              type: array
+              items: { $ref: '#/components/schemas/SourceAnalytics' }
+            topCitingAgents:
+              type: array
+              items:
+                type: object
+                properties:
+                  agentId: { type: string }
+                  citations: { type: integer }
+                  usdc: { type: string }
+            disputesOutstanding: { type: integer }
+
+    SourceAnalyticsDetail:
+      allOf:
+        - $ref: '#/components/schemas/SourceAnalytics'
+        - type: object
+          properties:
+            citationsLast24h: { type: integer }
+            usdcEarnedLast24h: { type: string }
+            periodCapUtilization: { type: string }
+            topCitingAgents:
+              type: array
+              items:
+                type: object
+                properties:
+                  agentId: { type: string }
+                  citations: { type: integer }
+                  usdc: { type: string }
+            fingerprintVersion: { type: integer }
+            disputesCount: { type: integer }
+
+    AgentAnalytics:
+      type: object
+      required: [agentId, requestsTotal]
+      properties:
+        agentId: { type: string }
+        requestsTotal: { type: integer }
+        requestsLast24h: { type: integer }
+        usdcSpentTotal: { type: string }
+        usdcSpentLast24h: { type: string }
+        reputationScore: { type: integer }
+        errorRate: { type: string }
+        latencyP50Ms: { type: integer }
+        latencyP99Ms: { type: integer }
+        perSourceCaps:
+          type: array
+          items:
+            type: object
+            properties:
+              sourceId: { type: string }
+              cap: { type: string }
+              used: { type: string }
+              utilization: { type: string }
+
+    FraudAnalytics:
+      type: object
+      required: [windowStart, windowEnd]
+      properties:
+        windowStart: { type: string, format: date-time }
+        windowEnd: { type: string, format: date-time }
+        detectionEvents: { type: integer }
+        quarantineRate: { type: string }
+        falsePositiveRate: { type: string }
+        falseNegativeRate: { type: string }
+        clawedBackUsdc: { type: string }
+        disputesOutstanding: { type: integer }
+        byAttack:
+          type: object
+          additionalProperties:
+            type: integer
