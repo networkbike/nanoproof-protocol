@@ -18,13 +18,26 @@ export const EthereumAddressSchema = z
   .transform((a) => a.toLowerCase());
 
 export const AttachWalletSchema = z.object({
-  creatorId: z.string(),
+  creatorId: z.string().min(1),
   address: EthereumAddressSchema,
   network: WalletNetworkSchema,
   label: z.string().max(60).optional(),
   isPrimary: z.boolean().default(false),
 });
 export type AttachWallet = z.infer<typeof AttachWalletSchema>;
+
+export const VerifyChallengeSchema = z.object({
+  challengeId: z.string().min(1),
+  signature: z.string().regex(/^0x[a-fA-F0-9]+$/, "Invalid signature."),
+});
+export type VerifyChallenge = z.infer<typeof VerifyChallengeSchema>;
+
+export const ListWalletsQuerySchema = z.object({
+  creatorId: z.string().min(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  cursor: z.string().optional(),
+});
+export type ListWalletsQuery = z.infer<typeof ListWalletsQuerySchema>;
 
 export const WalletSchema = z.object({
   id: z.string(),

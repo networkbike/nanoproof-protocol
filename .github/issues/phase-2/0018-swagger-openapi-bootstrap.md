@@ -11,6 +11,8 @@ priority: medium
 depends_on:
   - P2-006
 estimate: S
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Mount Swagger UI + serve OpenAPI spec at /docs
@@ -35,3 +37,12 @@ Wire `@nestjs/swagger` to render the spec generated from controller decorators, 
 ## Dependencies
 
 - P2-006 (Creators — first controller with decorators)
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+DocumentBuilder in main.ts → /docs; ApiTags + ApiOperation + ApiBearerAuth on every controller.
+

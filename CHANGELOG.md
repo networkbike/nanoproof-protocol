@@ -8,14 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **MVP scaffolding (apps + packages/shared + Prisma + docker-compose)**
-  - `apps/api` (NestJS 11 + Prisma 6) wired with: PrismaService, HealthController, Creators/Wallets/Sources/Citations/Payments modules with skeleton CRUD + simulate endpoints, HttpExceptionFilter mapping to NP_* codes, helmet + cors + rate-limiter + Swagger
-  - `apps/web` (Next.js 15 + Tailwind 4 + shadcn-style components) with landing, dashboard, simulate, api-keys pages
-  - `packages/shared` with Zod schemas for Creator / Wallet / Source / Citation / Payment, NP_* error catalog, atomic-USDC constants + utils
-  - Consolidated Prisma schema v1 (Creator, Wallet, Source, Citation, Payment + 4 enums) + idempotent seed
-  - `docker-compose.yml` (Postgres 16 + Redis 7)
-  - `SETUP.md`, `DEVELOPMENT.md`, README rewrite for MVP scope
-  - 5 GitHub milestones under `.github/milestones/`
+- **Phase 2 — Creator Registry implementation** (← the bulk of this commit)
+  - Expanded Prisma schema (Organization, OrganizationMembership, ApiKey, VerificationChallenge, SourceVerification, IdempotencyKey) + partial unique index on primary wallets
+  - Migration: `apps/api/prisma/migrations/20260701000001_phase2_creator_registry/migration.sql`
+  - Append-only Postgres triggers on `citations` + `payments` (NP_READONLY)
+  - `NPError` (Nest HttpException) + global filter mapping 18 NP_* codes to statuses
+  - `ZodValidationPipe` — Zod schemas as DTOs at controller boundary
+  - `IdempotencyInterceptor` — 24h Idempotency-Key replay via Postgres table
+  - Global `ApiKeyGuard` (`@Public()`, `@RequireScopes()`) with bcrypt-hashed bearer tokens
+  - `CreatorsService` + controller — full CRUD, uniqueness, reserved-name block, cursor pagination, stats aggregate
+  - `WalletsService` + controller — attach, EIP-191 challenge (10-min TTL), `viem.recoverMessageAddress` verify, atomic flip to VERIFIED+isPrimary
+  - `SourcesService` + controller — register, list, archive
+  - `SourcesVerifier` — DNS_TXT (dns.resolveTxt), HTML_META (fetch + regex), FILE_UPLOAD (fetch /.well-known/), MANUAL
+  - `ApiKeysService` + controller — mint (plaintext shown once), list, revoke
+  - Swagger UI at `/docs` with full decorators
+  - Vitest unit + e2e infrastructure (e2e suite requires a live Postgres)
+  - 16 of 22 Phase-2 issues closed via frontmatter (P2-001/002/004/005/007-012/014/015/017/018/021/022)
+
+### Changed
+- Downgraded Prisma from 6 to 5.22 (effect/bundler issue with pnpm-hoisted effect package)
+
+## [0.1.0] — MVP Scaffolding (Phase 0)
+
+### Added
+- `apps/api` (NestJS 11 + Prisma 5) wired with: PrismaService, HealthController, Creators/Wallets/Sources/Citations/Payments modules with skeleton CRUD + simulate endpoints, HttpExceptionFilter mapping to NP_* codes, helmet + cors + rate-limiter + Swagger
+- `apps/web` (Next.js 15 + Tailwind 4 + shadcn-style components) with landing, dashboard, simulate, api-keys pages
+- `packages/shared` with Zod schemas for Creator / Wallet / Source / Citation / Payment, NP_* error catalog, atomic-USDC constants + utils
+- Consolidated Prisma schema v1 (Creator, Wallet, Source, Citation, Payment + 4 enums) + idempotent seed
+- `docker-compose.yml` (Postgres 16 + Redis 7)
+- `SETUP.md`, `DEVELOPMENT.md`, README rewrite for MVP scope
+- 5 GitHub milestones under `.github/milestones/`
 
 ## [0.0.0] — Repository Foundation (Phase 1)
 

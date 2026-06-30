@@ -11,6 +11,8 @@ depends_on:
   - P2-006
   - P2-016
 estimate: S
+status: in-progress
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement GDPR erasure job (purge soft-deleted Creators after 30d)

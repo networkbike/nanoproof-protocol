@@ -12,6 +12,8 @@ depends_on:
   - P2-002
   - P2-007
 estimate: M
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement Wallet module — controller + service + repository
@@ -49,3 +51,12 @@ Implement Wallet CRUD endpoints (POST, GET list, PATCH :id). Verification endpoi
 
 - P2-002 (Prisma)
 - P2-007 (Wallet schemas)
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+apps/api/src/modules/wallets/{controller,service}.ts — POST attach / GET list / POST challenge / POST verify / DELETE detach.
+

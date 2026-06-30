@@ -9,6 +9,8 @@ labels:
 priority: high
 depends_on: []
 estimate: S
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Add Source Zod schemas to @nanoproof/shared
@@ -38,3 +40,12 @@ Define Zod schemas for Source resources.
 ## Dependencies
 
 None.
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+packages/shared/src/schemas/source.ts: CreateSourceSchema, ListSourcesQuerySchema, StartSourceVerificationSchema, SourceStatusSchema, AtomicUsdcSchema.
+

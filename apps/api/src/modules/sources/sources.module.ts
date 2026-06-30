@@ -1,10 +1,11 @@
 import { Module } from "@nestjs/common";
-import { SourcesController } from "./sources.controller";
-import { SourcesService } from "./sources.service";
+import { SourcesController } from "./sources.controller.js";
+import { SourcesService } from "./sources.service.js";
+import { SourcesVerifier } from "./sources.verifier.js";
 
 @Module({
   controllers: [SourcesController],
-  providers: [SourcesService],
+  providers: [SourcesService, SourcesVerifier],
   exports: [SourcesService],
 })
 export class SourcesModule {}

@@ -11,6 +11,8 @@ priority: high
 depends_on:
   - P2-002
 estimate: M
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement ApiKey authentication strategy + guard
@@ -43,3 +45,12 @@ Implement API-key based authentication for the creator's own integrations. The s
 ## Dependencies
 
 - P2-002 (Prisma bootstrap)
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+ApiKeyGuard (apps/api/src/common/decorators/auth.decorators.ts) + ApiKeysModule — bcrypt-hashed tokens, scope enforcement, per-key rate limit.
+

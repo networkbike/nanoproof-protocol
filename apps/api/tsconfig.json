@@ -22,7 +22,9 @@
     "resolveJsonModule": true,
     "moduleResolution": "node",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@nanoproof/shared": ["../../packages/shared/src/index.ts"],
+      "@nanoproof/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": ["src/**/*", "test/**/*"],

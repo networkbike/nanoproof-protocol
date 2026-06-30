@@ -10,7 +10,9 @@ export function atomicUsdcToUsd(atomic: string): string {
 
 /** Convert human-readable USD → atomic USDC. */
 export function usdToAtomicUsd(usd: string): string {
-  const [whole, frac = ""] = usd.split(".");
+  const parts = usd.split(".");
+  const whole = parts[0] ?? "0";
+  const frac = parts[1] ?? "";
   const padded = (frac + "000000").slice(0, 6);
   const big = BigInt(whole) * 1_000_000n + BigInt(padded);
   return big.toString();

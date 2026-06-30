@@ -12,6 +12,8 @@ priority: high
 depends_on:
   - P2-008
 estimate: M
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement EIP-191 wallet signature verification
@@ -47,3 +49,12 @@ Implement the canonical challenge → sign → verify flow for wallet ownership 
 ## Dependencies
 
 - P2-008 (Wallet CRUD)
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+viem.recoverMessageAddress() in WalletsService.verifyChallenge(); PENDING/EXPIRED/VERIFIED lifecycle; tx-in atomic flip to VERIFIED + isPrimary.
+

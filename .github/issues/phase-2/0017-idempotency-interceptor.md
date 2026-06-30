@@ -10,6 +10,8 @@ priority: medium
 depends_on:
   - P2-016
 estimate: S
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement Idempotency-Key interceptor + caching layer
@@ -34,3 +36,12 @@ Honor the `Idempotency-Key` header on POST endpoints. Re-submitting the same key
 ## Dependencies
 
 - P2-016 (BullMQ/Redis)
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+apps/api/src/common/interceptors/idempotency.interceptor.ts — Idempotency-Key header → 24h replay via IdempotencyKey table.
+

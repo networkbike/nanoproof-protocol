@@ -10,6 +10,8 @@ priority: high
 depends_on:
   - P2-001
 estimate: S
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Bootstrap NestJS PrismaService + PrismaModule
@@ -41,3 +43,12 @@ Wire the Prisma client into NestJS via a global `PrismaModule` + `PrismaService`
 ## Dependencies
 
 - P2-001 (schema)
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+PrismaService exposed via @Global PrismaModule; @nestjs/core APP_GUARD wires global ApiKeyGuard.
+

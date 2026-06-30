@@ -10,6 +10,8 @@ labels:
 priority: high
 depends_on: []
 estimate: S
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement global ZodValidationPipe + ValidationError formatter
@@ -34,3 +36,12 @@ A NestJS pipe that validates incoming request bodies, query params, and URL para
 ## Dependencies
 
 None.
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+apps/api/src/common/pipes/zod-validation.pipe.ts — ZodValidationPipe throwing NP_VALIDATION_FAILED with issues.
+

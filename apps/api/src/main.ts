@@ -1,9 +1,11 @@
+import "reflect-metadata";
+
 import { NestFactory } from "@nestjs/core";
-import { ValidationPipe, Logger } from "@nestjs/common";
+import { Logger, ValidationPipe } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import helmet from "helmet";
-import { AppModule } from "./app.module";
-import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
+import { AppModule } from "./app.module.js";
+import { HttpExceptionFilter } from "./common/filters/http-exception.filter.js";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -15,11 +17,14 @@ async function bootstrap() {
 
   app.use(helmet());
   app.enableCors({ origin: origins, credentials: true });
+
+  // Strict DTO validation — strips unknown fields, transforms primitives.
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      transformOptions: { enableImplicitConversion: false },
     }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
@@ -27,13 +32,25 @@ async function bootstrap() {
   // Swagger — driven by controller decorators. Spec also exported at /openapi.json.
   const swaggerConfig = new DocumentBuilder()
     .setTitle("NanoProof API")
-    .setDescription("Phase 2 MVP surface. See apps/api/openapi/creator-registry.yaml.")
+    .setDescription(
+      "Phase 2 — Creator Registry. Auth via `Authorization: Bearer np_<env>_<prefix>.<secret>`. " +
+        "Errors use the NP_* catalog from @nanoproof/shared.",
+    )
     .setVersion("0.2.0")
+    .setContact("NanoProof", "https://github.com/networkbike/nanoproof-protocol", "team@nanoproof.xyz")
     .addBearerAuth({ type: "http", scheme: "bearer", bearerFormat: "JWT" }, "ClerkAuth")
-    .addBearerAuth({ type: "http", scheme: "bearer", bearerFormat: "custom" }, "ApiKeyAuth")
+    .addBearerAuth(
+      {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "custom",
+        description: "Format: `np_<env>_<prefix>.<secret>`",
+      },
+      "ApiKeyAuth",
+    )
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup("docs", app, document);
+  SwaggerModule.setup("docs", app, document, { swaggerOptions: { persistAuthorization: true } });
 
   await app.listen(port);
   Logger.log(`🚀 NanoProof API ready at http://localhost:${port}`, "Bootstrap");

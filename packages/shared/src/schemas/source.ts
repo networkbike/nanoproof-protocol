@@ -48,3 +48,17 @@ export const SourceSchema = z.object({
   updatedAt: z.string(),
 });
 export type Source = z.infer<typeof SourceSchema>;
+
+export const ListSourcesQuerySchema = z.object({
+  creatorId: z.string().min(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  cursor: z.string().optional(),
+  status: SourceStatusSchema.optional(),
+  q: z.string().min(1).max(200).optional(),
+});
+export type ListSourcesQuery = z.infer<typeof ListSourcesQuerySchema>;
+
+export const StartSourceVerificationSchema = z.object({
+  method: z.enum(["DNS_TXT", "HTML_META", "FILE_UPLOAD", "MANUAL"]),
+});
+export type StartSourceVerification = z.infer<typeof StartSourceVerificationSchema>;

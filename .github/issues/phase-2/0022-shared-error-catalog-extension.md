@@ -9,6 +9,8 @@ labels:
 priority: high
 depends_on: []
 estimate: S
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Extend shared NP_* error catalog with Phase 2 codes
@@ -79,3 +81,12 @@ export const Errors = {
 ## Dependencies
 
 None.
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+packages/shared/src/errors/index.ts exports 18 NP_* codes + NPErrorStatus map; apps/api/src/common/errors/np.error.ts extends HttpException.
+

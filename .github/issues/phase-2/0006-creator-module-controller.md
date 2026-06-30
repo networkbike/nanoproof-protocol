@@ -13,6 +13,8 @@ depends_on:
   - P2-003
   - P2-005
 estimate: L
+status: in-progress
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement Creator module — controller + service + repository

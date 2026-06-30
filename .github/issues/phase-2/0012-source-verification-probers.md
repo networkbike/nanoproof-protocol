@@ -12,6 +12,8 @@ priority: high
 depends_on:
   - P2-011
 estimate: L
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement Source verification probers (DNS / HTML / File)
@@ -54,3 +56,12 @@ Implement the three Source verification methods per [`docs/source-verification.m
 ## Dependencies
 
 - P2-011 (Source CRUD)
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+apps/api/src/modules/sources/sources.verifier.ts — DNS_TXT (dns.resolveTxt), HTML_META (fetch + regex), FILE_UPLOAD (fetch /.well-known/), MANUAL.
+

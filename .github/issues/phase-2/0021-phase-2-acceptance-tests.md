@@ -17,6 +17,8 @@ depends_on:
   - P2-013
   - P2-014
 estimate: M
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Phase 2 acceptance — full end-to-end happy path test
@@ -50,3 +52,12 @@ The test:
 ## Dependencies
 
 - All P2-001 → P2-020 closed.
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+apps/api/test/e2e/creator-wallet.e2e.spec.ts — covers create / dup / reserved username / wallet attach / EIP-191 challenge + verify / healthz / stats.
+

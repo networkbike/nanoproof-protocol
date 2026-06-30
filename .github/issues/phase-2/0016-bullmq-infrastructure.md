@@ -10,6 +10,8 @@ priority: medium
 depends_on:
   - P2-002
 estimate: M
+status: in-progress
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Set up BullMQ + Redis for verification retries

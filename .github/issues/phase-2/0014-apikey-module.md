@@ -12,6 +12,8 @@ depends_on:
   - P2-002
   - P2-004
 estimate: M
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement ApiKey module — issue / list / revoke
@@ -48,3 +50,12 @@ Implement API-key issuance. Plaintext returned exactly once at creation; only SH
 
 - P2-002 (Prisma)
 - P2-004 (ApiKey auth)
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+apps/api/src/modules/apikeys/ — mint (bcrypt.hash, plaintext shown once), list, revoke; shared schema in packages/shared/src/schemas/apikey.ts.
+

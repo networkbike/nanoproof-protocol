@@ -12,6 +12,8 @@ depends_on:
   - P2-002
   - P2-006
 estimate: M
+status: in-progress
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement Organization module + memberships

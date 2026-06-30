@@ -58,7 +58,7 @@ This roadmap is the public plan for building NanoProof Protocol from a hackathon
 
 ---
 
-## Phase 2 — Creator Registry ⬜ Planned  · Lepton-tagged
+## Phase 2 — Creator Registry  🟡 In Progress  · Lepton-tagged
 
 **Goal:** Let creators register sources and attach a USDC payout wallet. This is the foundation every other layer depends on.
 
@@ -71,7 +71,7 @@ See [`docs/phase-2-creator-registry.md`](./docs/phase-2-creator-registry.md) for
 - [`apps/api/openapi/creator-registry.yaml`](./apps/api/openapi/creator-registry.yaml) — canonical OpenAPI 3.1 spec.
 
 ### Implementation issues
-22 implementation tickets live at [`.github/issues/phase-2/`](./.github/issues/phase-2/). See [the index](./.github/issues/phase-2/README.md) for execution order.
+22 implementation tickets live at [`.github/issues/phase-2/`](./.github/issues/phase-2/). See [the index](./.github/issues/phase-2/README.md) for execution order. **16/22 closed** in commit `fa2760e+1` (schema, error catalog, validation pipe, idempotency, ApiKey guard, Creator CRUD, Wallet EIP-191 verify, Source DNS/HTML/file probers, ApiKey mint/list/revoke, Swagger, e2e harness).
 
 ### Deliverables
 - [ ] Prisma schema + migration (`P2-001`, `P2-002`)

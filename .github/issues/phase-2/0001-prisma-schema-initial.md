@@ -10,6 +10,8 @@ labels:
 priority: high
 depends_on: []
 estimate: M
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Define initial Prisma schema for Creator Registry
@@ -44,3 +46,12 @@ None — this is the root issue for Phase 2.
 ## Closes
 
 - Implements the schema portion of ROADMAP.md Phase 2 acceptance criteria.
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+Expand Creator, Wallet, Source; add Organization, ApiKey, VerificationChallenge, SourceVerification, IdempotencyKey. Migration in apps/api/prisma/migrations/20260701000001_phase2_creator_registry/migration.sql.
+

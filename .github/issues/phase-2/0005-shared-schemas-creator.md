@@ -9,6 +9,8 @@ labels:
 priority: high
 depends_on: []
 estimate: S
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Add Creator Zod schemas to @nanoproof/shared
@@ -41,3 +43,12 @@ Define the canonical Zod schemas for the Creator resource. Every API and SDK wil
 ## Dependencies
 
 None — but should land before any API work that consumes Creator schemas.
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+packages/shared/src/schemas/creator.ts exports CreateCreatorSchema + UpdateCreatorSchema + UsernameSchema (reserved-name blocklist).
+

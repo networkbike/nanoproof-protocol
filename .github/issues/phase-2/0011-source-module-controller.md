@@ -12,6 +12,8 @@ depends_on:
   - P2-002
   - P2-010
 estimate: M
+status: closed
+milestone: phase-2-creator-registry
 ---
 
 # [Phase 2] Implement Source module — controller + service + repository"
@@ -49,3 +51,12 @@ Implement Source CRUD endpoints. Verification endpoints are split into P2-012.
 
 - P2-002 (Prisma)
 - P2-010 (Source schemas)
+
+
+## Resolution
+
+**Status:** ✅ Closed.
+**Milestone:** phase-2-creator-registry
+
+apps/api/src/modules/sources/{controller,service}.ts — register / list / get / start-verif / run-verif / archive.
+
