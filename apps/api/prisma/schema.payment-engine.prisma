@@ -1,0 +1,536 @@
+// =============================================================================
+// NanoProof Protocol — Payment Engine Prisma additions (Phase 4)
+// =============================================================================
+// APPEND-ONLY models for the Payment Engine. All writes are inserts; updates
+// happen via supersede rows. Enforced at the application layer + via Postgres
+// triggers (see bottom of file).
+//
+// New models:
+//   Vault                  — Creator vault for receiving USDC payouts
+//   PaymentIntent          — Aggregate of citations for one Creator+period
+//   Payout                 — Per-vault allocation from a PaymentIntent
+//   PaymentQuote           — Signed offchain promise to pay
+//   Receipt                — Onchain settlement receipt + hash chain
+//   ReceiptPayout          — Individual USDC transfer within a Receipt
+//   TreasuryTransaction    — Treasury ledger entry
+//   TreasuryWithdrawal     — Multisig withdrawal request
+//   RebatePaymentIntent    — Monthly volume-tier rebate
+//   FeeSchedule            — Per-agent fee tier configuration
+//
+// See: docs/payment-engine.md, docs/settlement-arc.md, docs/creator-vaults.md,
+//      docs/revenue-allocation.md, docs/arcscan-verification.md,
+//      docs/payment-audit.md, docs/treasury-management.md,
+//      docs/fee-structure.md, docs/payout-workflows.md
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum VaultMode {
+  SIMPLE
+  SPLIT
+  PROGRAMMABLE
+}
+
+enum VaultContractType {
+  EOA
+  GNOSIS_SAFE
+  ERC4337
+  CUSTOM
+}
+
+enum PaymentIntentStatus {
+  PENDING
+  SIGNED
+  BROADCAST
+  SETTLED
+  FAILED
+  ESCALATED
+  PAUSED
+  CANCELLED
+}
+
+enum PayoutStatus {
+  PENDING
+  SIGNED
+  SETTLED
+  HELD           // pre-settlement, frozen
+  CAPPED         // period cap reached; rolled to credit
+  DISPUTED
+  QUARANTINED    // fraud score > threshold
+  FAILED
+  CLAWED_BACK
+}
+
+enum BatchingTier {
+  FAST_5MIN
+  STANDARD_1H
+  SLOW_24H
+}
+
+enum ReceiptStatus {
+  BROADCAST
+  SETTLED
+  FAILED
+  ESCALATED
+}
+
+enum TreasuryTxType {
+  FEE_ACCRUAL
+  REFUND
+  REBATE
+  TOPUP              // treasury → hot wallet
+  WITHDRAWAL
+  CLAWBACK
+  OPERATIONAL
+}
+
+enum WithdrawalStatus {
+  PENDING
+  SIGNED
+  EXECUTED
+  REJECTED
+  CANCELLED
+}
+
+enum FeeTier {
+  FREE
+  GROWTH
+  SCALE
+  ENTERPRISE
+}
+
+// -----------------------------------------------------------------------------
+// Vault — Creator onchain destination for USDC payouts
+// -----------------------------------------------------------------------------
+
+model Vault {
+  id              String           @id @default(cuid()) // "vlt_<ulid>"
+  creatorId       String
+  walletId        String           // references Phase 2 wallet
+  address         String           // checksummed 0x address (lowercase for index)
+  network         String           // ARC_TESTNET | ARC_MAINNET | ...
+  mode            VaultMode        @default(SIMPLE)
+
+  // Programmable vault metadata
+  contractAddress String?
+  contractType    VaultContractType @default(EOA)
+  contractVersion String?
+  contractAbi     Json?
+
+  // Configuration
+  isPrimary       Boolean          @default(false)
+  label           String?
+  splits          Json             @default("[]") // [{ walletId, basisPoints }]
+
+  // Lifecycle
+  isActive        Boolean          @default(true)
+  pausedAt        DateTime?
+  pausedReason    String?
+
+  // Verification (delegated to Phase 2 wallet)
+  verificationStatus String         @default("VERIFIED")
+  verifiedAt        DateTime?
+
+  // Cumulative stats (denormalized counters, refreshed by worker)
+  totalReceivedAtomic  String       @default("0")
+  totalPayoutCount     Int          @default(0)
+  lastPayoutAt         DateTime?
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  retiredAt       DateTime?        // soft-retire when migrating
+
+  creator         Creator          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  payouts         Payout[]         @relation("VaultPayouts")
+
+  @@unique([address, network])
+  @@index([creatorId, isActive])
+  @@index([creatorId, isPrimary])
+  @@map("vaults")
+}
+
+// -----------------------------------------------------------------------------
+// PaymentIntent — Aggregate of citations for one Creator × period
+// -----------------------------------------------------------------------------
+
+model PaymentIntent {
+  id                  String              @id @default(cuid()) // "pi_<ulid>"
+  creatorId           String
+  agentId             String
+
+  // Period bounds
+  periodStart         DateTime
+  periodEnd           DateTime
+  batchingTier        BatchingTier        @default(STANDARD_1H)
+
+  // Aggregated amounts (atomic USDC)
+  totalAtomic         String              @default("0")
+  feeAtomic           String              @default("0")
+  netAtomic           String              @default("0")
+  feeBps              Int                 @default(50)
+  gasAmortizationAtomic String            @default("0")
+
+  // Status
+  status              PaymentIntentStatus @default(PENDING)
+  failureReason       String?
+
+  // Idempotency
+  idempotencyKey      String              @unique // sha256(creatorId || periodStart || periodEnd)
+
+  // Frozen at creation
+  splitsHash          String              // sha256 of the canonical splits config
+  policyVersion       String              @default("pe.v1.0.0")
+
+  // Lifecycle timestamps
+  createdAt           DateTime            @default(now())
+  signedAt            DateTime?
+  broadcastAt         DateTime?
+  settledAt           DateTime?
+  failedAt            DateTime?
+
+  // Append-only hash chain
+  prevHash            String?
+  rowHash             String
+
+  creator             Creator             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  payouts             Payout[]
+  receipt             Receipt?
+
+  @@index([creatorId, periodStart])
+  @@index([agentId, periodStart])
+  @@index([status, periodEnd])
+  @@map("payment_intents")
+}
+
+// -----------------------------------------------------------------------------
+// Payout — Per-vault allocation from a PaymentIntent
+// -----------------------------------------------------------------------------
+
+model Payout {
+  id                  String              @id @default(cuid()) // "po_<ulid>"
+  paymentIntentId     String
+  vaultId             String
+
+  // Allocation
+  amountAtomic        String              @default("0")
+  splitsHash          String              // frozen splits config used
+  basisPoints         Int                 // share of netAtomic, 0-10000
+
+  // Lifecycle
+  status              PayoutStatus        @default(PENDING)
+  payoutTxHash        String?             // set when settled
+  arcScanUrl          String?
+  settledAt           DateTime?
+  failedAt            DateTime?
+  failureReason       String?
+
+  // Disputes + clawbacks
+  disputeId           String?             // if held/disputed
+  clawedBackAt        DateTime?
+  clawbackTxHash      String?
+
+  // Idempotency
+  idempotencyKey      String              @unique // sha256(paymentIntentId || vaultId)
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  paymentIntent       PaymentIntent       @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  vault               Vault               @relation("VaultPayouts", fields: [vaultId], references: [id], onDelete: Cascade)
+  dispute             Dispute?            @relation(fields: [disputeId], references: [id], onDelete: SetNull)
+
+  @@index([paymentIntentId])
+  @@index([vaultId, status])
+  @@index([status, createdAt])
+  @@map("payouts")
+}
+
+// -----------------------------------------------------------------------------
+// PaymentQuote — Signed offchain promise to pay
+// -----------------------------------------------------------------------------
+
+model PaymentQuote {
+  id                  String   @id @default(cuid()) // "pq_<ulid>"
+  paymentIntentId     String
+
+  // Quote contents
+  totalAtomic         String
+  feeAtomic           String
+  netAtomic           String
+  payouts             Json     // [{ vaultId, amountAtomic, splitsHash }]
+  validUntil          DateTime
+
+  // Signature (EIP-712)
+  payer               String   // agent hot wallet address
+  signature           String   // 0x...
+
+  // Quote metadata
+  policyVersion       String   @default("pe.v1.0.0")
+  createdAt           DateTime @default(now())
+
+  @@index([paymentIntentId])
+  @@map("payment_quotes")
+}
+
+// -----------------------------------------------------------------------------
+// Receipt — Onchain settlement receipt with hash chain
+// -----------------------------------------------------------------------------
+
+model Receipt {
+  id                  String              @id @default(cuid()) // "rcpt_<ulid>"
+  paymentIntentId     String              @unique
+
+  // Onchain anchoring
+  txHash              String              @unique
+  blockNumber         BigInt
+  blockTimestamp      DateTime
+  blockHash           String
+  arcScanUrl          String
+
+  // Settlement
+  status              ReceiptStatus       @default(BROADCAST)
+  totalAtomic         String
+  feeAtomic           String
+  netAtomic           String
+
+  // x402 envelope
+  x402Envelope        Json
+  x402EnvelopeHash    String
+
+  // Gateway
+  gatewayBatchId      String?
+
+  // Hash chain (tamper-evident)
+  prevHash            String
+  hash                String              @unique
+
+  // Retry tracking
+  retryAttempts       Int                 @default(0)
+  failureReason       String?
+
+  // Lifecycle
+  broadcastAt         DateTime            @default(now())
+  settledAt           DateTime?
+  indexedAt           DateTime?
+
+  policyVersion       String              @default("pe.v1.0.0")
+
+  paymentIntent       PaymentIntent       @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  receiptPayouts      ReceiptPayout[]
+  treasuryTransaction TreasuryTransaction?
+
+  @@index([status, blockTimestamp])
+  @@index([txHash])
+  @@map("receipts")
+}
+
+// -----------------------------------------------------------------------------
+// ReceiptPayout — Individual USDC transfer within a Receipt
+// -----------------------------------------------------------------------------
+
+model ReceiptPayout {
+  id                  String   @id @default(cuid()) // "rp_<ulid>"
+  receiptId           String
+  vaultId             String
+
+  amountAtomic        String
+  recipientAddress    String   // 0x...
+  splitsHash          String
+  logIndex            Int      // USDC Transfer event log index in the Arc tx
+
+  @@index([receiptId])
+  @@index([vaultId])
+  @@map("receipt_payouts")
+}
+
+// -----------------------------------------------------------------------------
+// TreasuryTransaction — Treasury ledger entry
+// -----------------------------------------------------------------------------
+
+model TreasuryTransaction {
+  id                  String          @id @default(cuid()) // "tt_<ulid>"
+  type                TreasuryTxType
+  paymentIntentId     String?
+  receiptId           String?         @unique
+  agentId             String?
+  creatorId           String?
+
+  // Amount (signed: positive = inflow, negative = outflow)
+  amountAtomic        String
+  balanceAfterAtomic  String
+
+  // Onchain reference
+  txHash              String?
+  arcScanUrl          String?
+  blockNumber         BigInt?
+  blockTimestamp      DateTime?
+
+  reason              String?
+  metadata            Json?
+
+  createdAt           DateTime        @default(now())
+
+  receipt             Receipt?        @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([paymentIntentId])
+  @@index([createdAt])
+  @@map("treasury_transactions")
+}
+
+// -----------------------------------------------------------------------------
+// TreasuryWithdrawal — Multisig withdrawal request
+// -----------------------------------------------------------------------------
+
+model TreasuryWithdrawal {
+  id                  String              @id @default(cuid()) // "tw_<ulid>"
+  requestedBy         String              // operator user id
+  amountAtomic        String
+  recipientAddress    String
+  reason              String              @db.Text
+  supportingDocsUrl   String?
+
+  status              WithdrawalStatus    @default(PENDING)
+  signatures          Json                @default("[]") // [{ signer, signature, signedAt }]
+
+  requiredThreshold   Int                 @default(3)
+  requiredSigners     Int                 @default(5)
+
+  // Execution
+  safeTxHash          String?             // Gnosis Safe transaction hash
+  executionTxHash     String?             // final onchain tx hash
+  arcScanUrl          String?
+  executedAt          DateTime?
+
+  createdAt           DateTime            @default(now())
+  expiresAt           DateTime            // 7 days default
+
+  @@index([status, createdAt])
+  @@map("treasury_withdrawals")
+}
+
+// -----------------------------------------------------------------------------
+// RebatePaymentIntent — Monthly volume-tier rebate
+// -----------------------------------------------------------------------------
+
+model RebatePaymentIntent {
+  id                  String   @id @default(cuid()) // "pi_rebate_<ulid>"
+  agentId             String
+  periodYear          Int
+  periodMonth         Int     // 1-12
+
+  priorVolumeAtomic   String
+  priorAverageFeeBps  Int
+  currentTierBps      Int
+  tier                FeeTier
+
+  rebateAtomic        String
+  status              PaymentIntentStatus @default(PENDING)
+  paymentIntentId     String?  // links to standard PaymentIntent when executed
+
+  createdAt           DateTime @default(now())
+  executedAt          DateTime?
+
+  @@unique([agentId, periodYear, periodMonth])
+  @@index([agentId, status])
+  @@map("rebate_payment_intents")
+}
+
+// -----------------------------------------------------------------------------
+// FeeSchedule — Per-agent fee tier configuration
+// -----------------------------------------------------------------------------
+
+model FeeSchedule {
+  id                  String   @id @default(cuid()) // "fs_<ulid>"
+  agentId             String   @unique
+
+  currentTier         FeeTier  @default(FREE)
+  tierEffectiveAt     DateTime @default(now())
+
+  prior30dVolumeAtomic String  @default("0")
+  totalLifetimeVolumeAtomic String @default("0")
+  totalLifetimeFeePaidAtomic String @default("0")
+  totalLifetimeRebateReceivedAtomic String @default("0")
+
+  // Custom override (Phase 9 Enterprise tier)
+  customFeeBps        Int?
+  customOverrideReason String?
+  customOverrideBy   String?   // operator user id
+
+  // Auto-tier evaluation cron
+  lastEvaluatedAt     DateTime @default(now())
+  nextEvaluationAt    DateTime
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([currentTier])
+  @@map("fee_schedules")
+}
+
+// -----------------------------------------------------------------------------
+// Append-only enforcement (see Phase 3 schema for full pattern)
+// -----------------------------------------------------------------------------
+// CREATE TRIGGER payment_intents_append_only
+//   BEFORE UPDATE ON payment_intents
+//   FOR EACH ROW EXECUTE FUNCTION enforce_append_only();
+//
+// CREATE TRIGGER payouts_append_only
+//   BEFORE UPDATE ON payouts
+//   FOR EACH ROW EXECUTE FUNCTION enforce_append_only();
+//
+// CREATE TRIGGER receipts_append_only
+//   BEFORE UPDATE ON receipts
+//   FOR EACH ROW EXECUTE FUNCTION enforce_append_only();
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Source ↔ payouts / receipts relations (additive to Phase 2 Source model)
+// -----------------------------------------------------------------------------
+// Add to Source:
+//   payouts  Payout[]    (via Payout.paymentIntent → not directly)
+//   receipts Receipt[]   (via Receipt.paymentIntent → not directly)
+// Note: traversal is via PaymentIntent, not directly from Source.
+//
+// Add to Creator:
+//   vaults        Vault[]
+//   paymentIntents PaymentIntent[]
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Dispute (extends Phase 3 model with Payment Engine relations)
+// -----------------------------------------------------------------------------
+// Add to existing Phase 3 Dispute model:
+//   payouts  Payout[]
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Periodic ReconciliationReport
+// -----------------------------------------------------------------------------
+
+model ReconciliationReport {
+  id                  String   @id @default(cuid()) // "rr_<ulid>"
+  reportType          String   // "HOURLY" | "DAILY" | "MANUAL"
+  startedAt           DateTime
+  completedAt         DateTime?
+
+  // Stats
+  vaultsChecked       Int      @default(0)
+  receiptsChecked     Int      @default(0)
+  driftsDetected      Int      @default(0)
+
+  // Drift details
+  totalDriftAtomic    String   @default("0")
+  driftDetails        Json     @default("[]") // [{ vaultId, expectedAtomic, actualAtomic, deltaAtomic }]
+
+  status              String   @default("RUNNING") // RUNNING | SUCCESS | DRIFT_DETECTED | FAILED
+  error               String?
+
+  triggeredBy         String?  // "cron" | "manual" | operator user id
+
+  @@index([reportType, startedAt])
+  @@index([status])
+  @@map("reconciliation_reports")
+}

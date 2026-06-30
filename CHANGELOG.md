@@ -41,6 +41,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Package subdirectory READMEs: `packages/citation-engine/{core,scoring,fingerprinting,matching,registry,analytics,types,interfaces,docs,tests}/README.md`
 - 25 implementation tickets under `.github/issues/phase-3/`
 
+### Phase 4 — Payment Engine architecture
+- Canonical architecture: `docs/payment-engine.md` (8-stage pipeline, settlement model, latency budget)
+- Settlement: `docs/settlement-arc.md` (Arc L1, Circle Gateway batching, x402 envelopes)
+- Creator vaults: `docs/creator-vaults.md` (3 modes, multisig, migration)
+- Revenue allocation: `docs/revenue-allocation.md` (splits, org policy, recursive royalties, zero-loss)
+- ArcScan verification: `docs/arcscan-verification.md` (hash-chained Receipts, 6-check verification)
+- Payment audit: `docs/payment-audit.md` (audit trail, replay toolkit, dispute resolution)
+- Treasury management: `docs/treasury-management.md` (3-of-5 multisig, hot wallet, cold storage, KMS migration)
+- Fee structure: `docs/fee-structure.md` (0.5% default + 4 tiers, batching tiers, volume rebates)
+- Payout workflows: `docs/payout-workflows.md` (12 end-to-end flows + failure modes + retry semantics)
+- Append-only Prisma additions: `apps/api/prisma/schema.payment-engine.prisma` (Vault, PaymentIntent, Payout, PaymentQuote, Receipt, ReceiptPayout, TreasuryTransaction, TreasuryWithdrawal, RebatePaymentIntent, FeeSchedule, ReconciliationReport + Postgres triggers)
+- OpenAPI 3.1 spec: `apps/api/openapi/payment-engine.yaml` (vaults, payments, payouts, receipts, treasury, fees, rebates, reconciliation)
+- Package subdirectory READMEs: `packages/payment-engine/{core,settlement,vaults,allocation,receipts,treasury,fees,x402,types,interfaces,docs,tests}/README.md`
+- 25 implementation tickets under `.github/issues/phase-4/`
+- ROADMAP phases reordered: Phase 4 = Payment Engine, Phase 5 = AI Research Agent
+
 ### Notes
 - **Pre-alpha.** No application code is shipped yet — see `ROADMAP.md` for the phased build plan.
 - Implementation begins in Phase 2 of the roadmap.

@@ -1,0 +1,1519 @@
+openapi: 3.1.0
+info:
+  title: NanoProof Payment Engine API
+  version: 0.4.0
+  summary: Payment intents, vaults, payouts, receipts, treasury, fees.
+  description: |
+    REST API for the NanoProof Payment Engine. Phase 4 surface.
+    See `docs/payment-engine.md`, `docs/settlement-arc.md`,
+    `docs/creator-vaults.md`, `docs/revenue-allocation.md`,
+    `docs/arcscan-verification.md`, `docs/payment-audit.md`,
+    `docs/treasury-management.md`, `docs/fee-structure.md`,
+    `docs/payout-workflows.md`.
+
+    Errors use the `NP_*` catalog defined in `@nanoproof/shared/errors`.
+  contact:
+    name: NanoProof Protocol
+    email: ops@nanoproof.xyz
+    url: https://github.com/networkbike/nanoproof-protocol
+  license:
+    name: MIT
+    url: https://github.com/networkbike/nanoproof-protocol/blob/main/LICENSE
+
+servers:
+  - url: https://api.nanoproof.xyz
+    description: Production
+  - url: https://staging.nanoproof.xyz
+    description: Staging
+  - url: http://localhost:4000
+    description: Local development
+
+tags:
+  - name: Vaults
+    description: Creator vaults for receiving USDC payouts.
+  - name: Payments
+    description: PaymentIntents + quotes + execution.
+  - name: Payouts
+    description: Individual per-vault payouts from a PaymentIntent.
+  - name: Receipts
+    description: Onchain settlement receipts.
+  - name: Treasury
+    description: Treasury balances + transactions + withdrawals.
+  - name: Fees
+    description: Per-agent fee schedule + tier evaluation.
+  - name: Rebates
+    description: Monthly volume-tier rebates.
+  - name: Reconciliation
+    description: Reconciliation reports vs. Arc L1 state.
+
+security:
+  - ClerkAuth: []
+  - ApiKeyAuth: []
+  - {}
+
+paths:
+
+  # ============================ Vaults ======================================
+
+  /v1/vaults:
+    post:
+      tags: [Vaults]
+      operationId: createVault
+      summary: Create a Creator vault.
+      security:
+        - ClerkAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVaultRequest'
+      responses:
+        '201':
+          description: Vault created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vault' }
+        '409':
+          description: Vault for this address + network already exists.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    get:
+      tags: [Vaults]
+      operationId: listVaults
+      summary: List vaults (auth'd creator).
+      security:
+        - ClerkAuth: []
+      parameters:
+        - in: query
+          name: creatorId
+          schema: { type: string }
+        - in: query
+          name: network
+          schema: { type: string, enum: [ARC_TESTNET, ARC_MAINNET] }
+        - in: query
+          name: isActive
+          schema: { type: boolean }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        '200':
+          description: Page of vaults.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VaultPage' }
+
+  /v1/vaults/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^vlt_[a-z0-9]+$' }
+    get:
+      tags: [Vaults]
+      operationId: getVault
+      summary: Read a vault.
+      responses:
+        '200':
+          description: Vault.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vault' }
+        '404':
+          $ref: '#/components/responses/VaultNotFound'
+
+    patch:
+      tags: [Vaults]
+      operationId: updateVault
+      summary: Update vault label, splits, or isPrimary.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateVaultRequest' }
+      responses:
+        '200':
+          description: Updated vault.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vault' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /v1/vaults/{id}/pause:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^vlt_[a-z0-9]+$' }
+    post:
+      tags: [Vaults]
+      operationId: pauseVault
+      summary: Pause a vault (no incoming payouts).
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: Paused.
+
+  /v1/vaults/{id}/resume:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^vlt_[a-z0-9]+$' }
+    post:
+      tags: [Vaults]
+      operationId: resumeVault
+      summary: Resume a paused vault.
+      security:
+        - ClerkAuth: []
+      responses:
+        '200':
+          description: Resumed.
+
+  /v1/vaults/{id}/migrate:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^vlt_[a-z0-9]+$' }
+    post:
+      tags: [Vaults]
+      operationId: migrateVault
+      summary: Migrate to a new wallet address.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newWalletId]
+              properties:
+                newWalletId: { type: string }
+                scheduledAt: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Migration initiated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vault' }
+
+  /v1/vaults/{id}/receipts:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^vlt_[a-z0-9]+$' }
+    get:
+      tags: [Vaults]
+      operationId: listVaultReceipts
+      summary: List Receipts to a vault.
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        '200':
+          description: Receipts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptPage' }
+
+  /v1/vaults/{id}/balance:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^vlt_[a-z0-9]+$' }
+    get:
+      tags: [Vaults]
+      operationId: getVaultBalance
+      summary: Read current onchain USDC balance.
+      responses:
+        '200':
+          description: Vault balance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VaultBalance' }
+
+  # ============================ Payments ====================================
+
+  /v1/payments/intents:
+    post:
+      tags: [Payments]
+      operationId: createPaymentIntent
+      summary: Create a PaymentIntent (usually triggered by citation events).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePaymentIntentRequest' }
+      responses:
+        '201':
+          description: PaymentIntent created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentIntent' }
+
+    get:
+      tags: [Payments]
+      operationId: listPaymentIntents
+      summary: List PaymentIntents (filterable).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: query
+          name: creatorId
+          schema: { type: string }
+        - in: query
+          name: agentId
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/PaymentIntentStatus' }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        '200':
+          description: Page of PaymentIntents.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentIntentPage' }
+
+  /v1/payments/intents/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^pi_[a-z0-9]+$' }
+    get:
+      tags: [Payments]
+      operationId: getPaymentIntent
+      summary: Read a PaymentIntent (with Payouts).
+      responses:
+        '200':
+          description: PaymentIntent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentIntentDetail' }
+        '404':
+          $ref: '#/components/responses/PaymentIntentNotFound'
+
+  /v1/payments/intents/{id}/execute:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^pi_[a-z0-9]+$' }
+    post:
+      tags: [Payments]
+      operationId: executePaymentIntent
+      summary: Execute a PaymentIntent (sign + batch + settle).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: PaymentIntent settled.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Receipt' }
+        '409':
+          description: PaymentIntent in invalid state for execution.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /v1/payments/intents/{id}/pause:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^pi_[a-z0-9]+$' }
+    post:
+      tags: [Payments]
+      operationId: pausePaymentIntent
+      summary: Pause a PaymentIntent (operator action).
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: Paused.
+
+  /v1/payments/quotes/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^pq_[a-z0-9]+$' }
+    get:
+      tags: [Payments]
+      operationId: getPaymentQuote
+      summary: Read a PaymentQuote.
+      responses:
+        '200':
+          description: PaymentQuote.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentQuote' }
+
+  # ============================ Payouts =====================================
+
+  /v1/payouts:
+    get:
+      tags: [Payouts]
+      operationId: listPayouts
+      summary: List Payouts (filterable).
+      parameters:
+        - in: query
+          name: paymentIntentId
+          schema: { type: string }
+        - in: query
+          name: vaultId
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/PayoutStatus' }
+        - in: query
+          name: creatorId
+          schema: { type: string }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Page of Payouts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PayoutPage' }
+
+  /v1/payouts/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^po_[a-z0-9]+$' }
+    get:
+      tags: [Payouts]
+      operationId: getPayout
+      summary: Read a Payout (with Receipt link).
+      responses:
+        '200':
+          description: Payout.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payout' }
+        '404':
+          $ref: '#/components/responses/PayoutNotFound'
+
+  /v1/payouts/{id}/retry:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^po_[a-z0-9]+$' }
+    post:
+      tags: [Payouts]
+      operationId: retryPayout
+      summary: Retry a failed Payout (operator).
+      security:
+        - ClerkAuth: []
+      responses:
+        '200':
+          description: Payout requeued.
+
+  # ============================ Receipts ====================================
+
+  /v1/receipts:
+    get:
+      tags: [Receipts]
+      operationId: listReceipts
+      summary: List Receipts (publicly cacheable).
+      parameters:
+        - in: query
+          name: paymentIntentId
+          schema: { type: string }
+        - in: query
+          name: agentId
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/ReceiptStatus' }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        '200':
+          description: Page of Receipts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptPage' }
+
+  /v1/receipts/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^rcpt_[a-z0-9]+$' }
+    get:
+      tags: [Receipts]
+      operationId: getReceipt
+      summary: Read a Receipt (public).
+      responses:
+        '200':
+          description: Receipt.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptDetail' }
+        '404':
+          $ref: '#/components/responses/ReceiptNotFound'
+
+  /v1/receipts/by-tx/{txHash}:
+    parameters:
+      - in: path
+        name: txHash
+        required: true
+        schema: { type: string, pattern: '^0x[a-fA-F0-9]{64}$' }
+    get:
+      tags: [Receipts]
+      operationId: getReceiptByTxHash
+      summary: Lookup a Receipt by onchain txHash (public).
+      responses:
+        '200':
+          description: Receipt.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Receipt' }
+
+  /v1/receipts/{id}/verify:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^rcpt_[a-z0-9]+$' }
+    get:
+      tags: [Receipts]
+      operationId: verifyReceipt
+      summary: Independently verify a Receipt against ArcScan + local hash chain.
+      responses:
+        '200':
+          description: Verification result.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReceiptVerification' }
+
+  # ============================ Treasury ====================================
+
+  /v1/treasury:
+    get:
+      tags: [Treasury]
+      operationId: getTreasury
+      summary: Read treasury state (public).
+      responses:
+        '200':
+          description: Treasury state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Treasury' }
+
+  /v1/treasury/balance:
+    get:
+      tags: [Treasury]
+      operationId: getTreasuryBalance
+      summary: Current balances (treasury, hot wallet, cold storage).
+      responses:
+        '200':
+          description: Balances.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TreasuryBalance' }
+
+  /v1/treasury/transactions:
+    get:
+      tags: [Treasury]
+      operationId: listTreasuryTransactions
+      summary: Recent treasury transactions (public).
+      parameters:
+        - in: query
+          name: type
+          schema: { $ref: '#/components/schemas/TreasuryTxType' }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        '200':
+          description: Treasury transactions.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TreasuryTransactionPage' }
+
+  /v1/treasury/withdrawals:
+    post:
+      tags: [Treasury]
+      operationId: createWithdrawal
+      summary: Initiate a multisig withdrawal (operator).
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWithdrawalRequest' }
+      responses:
+        '201':
+          description: Withdrawal request created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TreasuryWithdrawal' }
+
+    get:
+      tags: [Treasury]
+      operationId: listWithdrawals
+      summary: List withdrawal requests.
+      security:
+        - ClerkAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/WithdrawalStatus' }
+      responses:
+        '200':
+          description: Withdrawals.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WithdrawalPage' }
+
+  /v1/treasury/withdrawals/{id}/sign:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, pattern: '^tw_[a-z0-9]+$' }
+    post:
+      tags: [Treasury]
+      operationId: signWithdrawal
+      summary: Add an operator signature to a withdrawal.
+      security:
+        - ClerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signature]
+              properties:
+                signature: { type: string, pattern: '^0x[a-fA-F0-9]+$' }
+      responses:
+        '200':
+          description: Signature added.
+
+  /v1/treasury/hot-wallet:
+    get:
+      tags: [Treasury]
+      operationId: getHotWallet
+      summary: Hot wallet state + drain protection.
+      responses:
+        '200':
+          description: Hot wallet state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotWalletState' }
+
+  /v1/treasury/refills:
+    get:
+      tags: [Treasury]
+      operationId: listRefills
+      summary: Hot wallet refill history.
+      responses:
+        '200':
+          description: Refills.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RefillPage' }
+
+  # ============================ Fees =======================================
+
+  /v1/fees/agent/{agentId}:
+    parameters:
+      - in: path
+        name: agentId
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Fees]
+      operationId: getAgentFeeSchedule
+      summary: Get an agent's fee schedule + tier.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Fee schedule.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FeeSchedule' }
+
+  /v1/fees/agent/{agentId}/quote:
+    parameters:
+      - in: path
+        name: agentId
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Fees]
+      operationId: quoteFee
+      summary: Quote the fee for a hypothetical PaymentIntent.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [totalAtomic]
+              properties:
+                totalAtomic: { type: string }
+                batchingTier:
+                  type: string
+                  enum: [FAST_5MIN, STANDARD_1H, SLOW_24H]
+                network: { type: string, enum: [ARC_TESTNET, ARC_MAINNET] }
+      responses:
+        '200':
+          description: Quote.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FeeQuote' }
+
+  /v1/fees/tiers:
+    get:
+      tags: [Fees]
+      operationId: listFeeTiers
+      summary: List available fee tiers.
+      responses:
+        '200':
+          description: Fee tiers.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FeeTierInfo' }
+
+  # ============================ Rebates =====================================
+
+  /v1/rebates:
+    get:
+      tags: [Rebates]
+      operationId: listRebates
+      summary: List rebates (auth'd agent or operator).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: query
+          name: agentId
+          schema: { type: string }
+        - in: query
+          name: periodYear
+          schema: { type: integer }
+        - in: query
+          name: periodMonth
+          schema: { type: integer, minimum: 1, maximum: 12 }
+      responses:
+        '200':
+          description: Rebates.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RebatePage' }
+
+  # ============================ Reconciliation ==============================
+
+  /v1/reconciliation/reports:
+    get:
+      tags: [Reconciliation]
+      operationId: listReconciliationReports
+      summary: List reconciliation reports (operator).
+      security:
+        - ClerkAuth: []
+      responses:
+        '200':
+          description: Reports.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReconciliationReportPage' }
+
+  /v1/reconciliation/run:
+    post:
+      tags: [Reconciliation]
+      operationId: runReconciliation
+      summary: Trigger an ad-hoc reconciliation (operator).
+      security:
+        - ClerkAuth: []
+      responses:
+        '201':
+          description: Reconciliation started.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReconciliationReport' }
+
+  # ============================ Health ======================================
+
+  /v1/healthz:
+    get:
+      tags: [Vaults]
+      operationId: healthz
+      summary: Health check.
+      security: []
+      responses:
+        '200':
+          description: OK.
+
+# -----------------------------------------------------------------------------
+# Components
+# -----------------------------------------------------------------------------
+components:
+
+  securitySchemes:
+    ClerkAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: custom
+
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      schema: { type: string, maxLength: 200 }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid auth.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Authenticated but not authorized.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationError:
+      description: Zod validation failed.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidationErrorResponse' }
+    RateLimited:
+      description: Rate limit exceeded.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    VaultNotFound:
+      description: Vault not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    PaymentIntentNotFound:
+      description: PaymentIntent not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    PayoutNotFound:
+      description: Payout not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ReceiptNotFound:
+      description: Receipt not found.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+
+    # ---------- Common ------------------------------------------------------
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: NP_VAULT_NOT_FOUND }
+        message: { type: string }
+        details:
+          type: object
+          additionalProperties: true
+
+    ValidationErrorResponse:
+      type: object
+      required: [code, message, issues]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        issues:
+          type: array
+          items:
+            type: object
+            properties:
+              path: { type: string }
+              message: { type: string }
+              code: { type: string }
+
+    CursorPage:
+      type: object
+      required: [data, hasMore]
+      properties:
+        data: { type: array, items: {} }
+        nextCursor: { type: string, nullable: true }
+        hasMore: { type: boolean }
+
+    # ---------- Enums -------------------------------------------------------
+
+    VaultMode:
+      type: string
+      enum: [SIMPLE, SPLIT, PROGRAMMABLE]
+
+    VaultContractType:
+      type: string
+      enum: [EOA, GNOSIS_SAFE, ERC4337, CUSTOM]
+
+    PaymentIntentStatus:
+      type: string
+      enum: [PENDING, SIGNED, BROADCAST, SETTLED, FAILED, ESCALATED, PAUSED, CANCELLED]
+
+    PayoutStatus:
+      type: string
+      enum: [PENDING, SIGNED, SETTLED, HELD, CAPPED, DISPUTED, QUARANTINED, FAILED, CLAWED_BACK]
+
+    BatchingTier:
+      type: string
+      enum: [FAST_5MIN, STANDARD_1H, SLOW_24H]
+
+    ReceiptStatus:
+      type: string
+      enum: [BROADCAST, SETTLED, FAILED, ESCALATED]
+
+    TreasuryTxType:
+      type: string
+      enum: [FEE_ACCRUAL, REFUND, REBATE, TOPUP, WITHDRAWAL, CLAWBACK, OPERATIONAL]
+
+    WithdrawalStatus:
+      type: string
+      enum: [PENDING, SIGNED, EXECUTED, REJECTED, CANCELLED]
+
+    FeeTier:
+      type: string
+      enum: [FREE, GROWTH, SCALE, ENTERPRISE]
+
+    # ---------- Vault -------------------------------------------------------
+
+    CreateVaultRequest:
+      type: object
+      required: [walletId, address, network]
+      properties:
+        walletId: { type: string }
+        address: { type: string, pattern: '^0x[a-fA-F0-9]{40}$' }
+        network:
+          type: string
+          enum: [ARC_TESTNET, ARC_MAINNET]
+        mode: { $ref: '#/components/schemas/VaultMode' }
+        isPrimary: { type: boolean, default: false }
+        label: { type: string, maxLength: 60 }
+        splits:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            required: [walletId, basisPoints]
+            properties:
+              walletId: { type: string }
+              basisPoints: { type: integer, minimum: 1, maximum: 9999 }
+        contractAddress: { type: string, nullable: true }
+        contractType: { $ref: '#/components/schemas/VaultContractType' }
+        contractVersion: { type: string, nullable: true }
+        contractAbi:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    UpdateVaultRequest:
+      type: object
+      properties:
+        label: { type: string, maxLength: 60 }
+        isPrimary: { type: boolean }
+        splits:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            required: [walletId, basisPoints]
+            properties:
+              walletId: { type: string }
+              basisPoints: { type: integer, minimum: 1, maximum: 9999 }
+
+    Vault:
+      type: object
+      required: [id, creatorId, walletId, address, network, mode, isPrimary, isActive, createdAt]
+      properties:
+        id: { type: string, example: vlt_01HXY... }
+        creatorId: { type: string }
+        walletId: { type: string }
+        address: { type: string }
+        network: { type: string }
+        mode: { $ref: '#/components/schemas/VaultMode' }
+        contractAddress: { type: string, nullable: true }
+        contractType: { $ref: '#/components/schemas/VaultContractType' }
+        contractVersion: { type: string, nullable: true }
+        isPrimary: { type: boolean }
+        label: { type: string, nullable: true }
+        splits:
+          type: array
+          items:
+            type: object
+            properties:
+              walletId: { type: string }
+              basisPoints: { type: integer }
+        isActive: { type: boolean }
+        pausedAt: { type: string, format: date-time, nullable: true }
+        pausedReason: { type: string, nullable: true }
+        totalReceivedAtomic: { type: string }
+        totalPayoutCount: { type: integer }
+        lastPayoutAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        retiredAt: { type: string, format: date-time, nullable: true }
+
+    VaultPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Vault' }
+
+    VaultBalance:
+      type: object
+      required: [vaultId, address, network, balanceAtomic, decimals, source]
+      properties:
+        vaultId: { type: string }
+        address: { type: string }
+        network: { type: string }
+        balanceAtomic: { type: string }
+        decimals: { type: integer, example: 6 }
+        source: { type: string, enum: [ARC_RPC, ARCANALYTICS_CACHE] }
+        fetchedAt: { type: string, format: date-time }
+
+    # ---------- PaymentIntent -----------------------------------------------
+
+    CreatePaymentIntentRequest:
+      type: object
+      required: [creatorId, periodStart, periodEnd]
+      properties:
+        creatorId: { type: string }
+        agentId: { type: string }
+        periodStart: { type: string, format: date-time }
+        periodEnd: { type: string, format: date-time }
+        batchingTier: { $ref: '#/components/schemas/BatchingTier' }
+        citationIds:
+          type: array
+          items: { type: string }
+        sourcePricing:
+          type: object
+          additionalProperties: true
+          description: Optional override of Source pricing for this intent
+
+    PaymentIntent:
+      type: object
+      required: [id, creatorId, periodStart, periodEnd, status, totalAtomic, feeAtomic, netAtomic, idempotencyKey, createdAt]
+      properties:
+        id: { type: string, example: pi_01HXY... }
+        creatorId: { type: string }
+        agentId: { type: string }
+        periodStart: { type: string, format: date-time }
+        periodEnd: { type: string, format: date-time }
+        batchingTier: { $ref: '#/components/schemas/BatchingTier' }
+        totalAtomic: { type: string }
+        feeAtomic: { type: string }
+        netAtomic: { type: string }
+        feeBps: { type: integer }
+        gasAmortizationAtomic: { type: string }
+        status: { $ref: '#/components/schemas/PaymentIntentStatus' }
+        failureReason: { type: string, nullable: true }
+        idempotencyKey: { type: string }
+        splitsHash: { type: string }
+        policyVersion: { type: string }
+        createdAt: { type: string, format: date-time }
+        signedAt: { type: string, format: date-time, nullable: true }
+        broadcastAt: { type: string, format: date-time, nullable: true }
+        settledAt: { type: string, format: date-time, nullable: true }
+        failedAt: { type: string, format: date-time, nullable: true }
+
+    PaymentIntentDetail:
+      allOf:
+        - $ref: '#/components/schemas/PaymentIntent'
+        - type: object
+          properties:
+            payouts:
+              type: array
+              items: { $ref: '#/components/schemas/Payout' }
+            receipt: { $ref: '#/components/schemas/Receipt' }
+
+    PaymentIntentPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/PaymentIntent' }
+
+    # ---------- Payout ------------------------------------------------------
+
+    Payout:
+      type: object
+      required: [id, paymentIntentId, vaultId, amountAtomic, status, createdAt]
+      properties:
+        id: { type: string, example: po_01HXY... }
+        paymentIntentId: { type: string }
+        vaultId: { type: string }
+        amountAtomic: { type: string }
+        splitsHash: { type: string }
+        basisPoints: { type: integer }
+        status: { $ref: '#/components/schemas/PayoutStatus' }
+        payoutTxHash: { type: string, nullable: true }
+        arcScanUrl: { type: string, nullable: true }
+        settledAt: { type: string, format: date-time, nullable: true }
+        failedAt: { type: string, format: date-time, nullable: true }
+        failureReason: { type: string, nullable: true }
+        disputeId: { type: string, nullable: true }
+        clawedBackAt: { type: string, format: date-time, nullable: true }
+        clawbackTxHash: { type: string, nullable: true }
+        idempotencyKey: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    PayoutPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Payout' }
+
+    # ---------- PaymentQuote ------------------------------------------------
+
+    PaymentQuote:
+      type: object
+      required: [id, paymentIntentId, totalAtomic, feeAtomic, netAtomic, validUntil, payer, signature]
+      properties:
+        id: { type: string }
+        paymentIntentId: { type: string }
+        totalAtomic: { type: string }
+        feeAtomic: { type: string }
+        netAtomic: { type: string }
+        payouts:
+          type: array
+          items:
+            type: object
+            properties:
+              vaultId: { type: string }
+              amountAtomic: { type: string }
+              splitsHash: { type: string }
+        validUntil: { type: string, format: date-time }
+        payer: { type: string }
+        signature: { type: string }
+        policyVersion: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    # ---------- Receipt -----------------------------------------------------
+
+    Receipt:
+      type: object
+      required: [id, paymentIntentId, txHash, blockNumber, blockTimestamp, status, totalAtomic, feeAtomic, netAtomic, hash, prevHash]
+      properties:
+        id: { type: string, example: rcpt_01HXY... }
+        paymentIntentId: { type: string }
+        txHash: { type: string }
+        blockNumber: { type: integer, format: int64 }
+        blockTimestamp: { type: string, format: date-time }
+        blockHash: { type: string }
+        arcScanUrl: { type: string }
+        status: { $ref: '#/components/schemas/ReceiptStatus' }
+        totalAtomic: { type: string }
+        feeAtomic: { type: string }
+        netAtomic: { type: string }
+        x402EnvelopeHash: { type: string }
+        gatewayBatchId: { type: string, nullable: true }
+        prevHash: { type: string }
+        hash: { type: string }
+        retryAttempts: { type: integer }
+        failureReason: { type: string, nullable: true }
+        broadcastAt: { type: string, format: date-time }
+        settledAt: { type: string, format: date-time, nullable: true }
+        indexedAt: { type: string, format: date-time, nullable: true }
+        policyVersion: { type: string }
+
+    ReceiptDetail:
+      allOf:
+        - $ref: '#/components/schemas/Receipt'
+        - type: object
+          properties:
+            receiptPayouts:
+              type: array
+              items: { $ref: '#/components/schemas/ReceiptPayout' }
+            x402Envelope:
+              type: object
+              additionalProperties: true
+
+    ReceiptPayout:
+      type: object
+      required: [id, receiptId, vaultId, amountAtomic, recipientAddress, logIndex]
+      properties:
+        id: { type: string }
+        receiptId: { type: string }
+        vaultId: { type: string }
+        amountAtomic: { type: string }
+        recipientAddress: { type: string }
+        splitsHash: { type: string }
+        logIndex: { type: integer }
+
+    ReceiptPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Receipt' }
+
+    ReceiptVerification:
+      type: object
+      required: [receiptId, verified, checks]
+      properties:
+        receiptId: { type: string }
+        verified: { type: boolean }
+        checks:
+          type: object
+          properties:
+            localExists: { type: boolean }
+            onchainExists: { type: boolean }
+            txHashMatches: { type: boolean }
+            blockTimestampMatches: { type: boolean }
+            transferEventsMatch: { type: boolean }
+            hashChainValid: { type: boolean }
+        details:
+          type: object
+          additionalProperties: true
+
+    # ---------- Treasury ----------------------------------------------------
+
+    Treasury:
+      type: object
+      required: [treasuryVaultAddress, network, multisigThreshold, multisigSigners]
+      properties:
+        treasuryVaultAddress: { type: string }
+        network: { type: string }
+        multisigThreshold: { type: integer, example: 3 }
+        multisigSigners: { type: integer, example: 5 }
+        contractType: { type: string, example: GNOSIS_SAFE_v1.3.0 }
+
+    TreasuryBalance:
+      type: object
+      required: [treasuryAtomic, hotWalletAtomic, coldStorageAtomic, totalAtomic, fetchedAt]
+      properties:
+        treasuryAtomic: { type: string }
+        hotWalletAtomic: { type: string }
+        coldStorageAtomic: { type: string }
+        totalAtomic: { type: string }
+        network: { type: string }
+        fetchedAt: { type: string, format: date-time }
+
+    TreasuryTransaction:
+      type: object
+      required: [id, type, amountAtomic, balanceAfterAtomic, createdAt]
+      properties:
+        id: { type: string }
+        type: { $ref: '#/components/schemas/TreasuryTxType' }
+        paymentIntentId: { type: string, nullable: true }
+        receiptId: { type: string, nullable: true }
+        agentId: { type: string, nullable: true }
+        creatorId: { type: string, nullable: true }
+        amountAtomic: { type: string }
+        balanceAfterAtomic: { type: string }
+        txHash: { type: string, nullable: true }
+        arcScanUrl: { type: string, nullable: true }
+        blockNumber: { type: integer, nullable: true }
+        blockTimestamp: { type: string, format: date-time, nullable: true }
+        reason: { type: string, nullable: true }
+        metadata: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+
+    TreasuryTransactionPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/TreasuryTransaction' }
+
+    CreateWithdrawalRequest:
+      type: object
+      required: [amountAtomic, recipientAddress, reason]
+      properties:
+        amountAtomic: { type: string }
+        recipientAddress: { type: string }
+        reason: { type: string, minLength: 20, maxLength: 1000 }
+        supportingDocsUrl: { type: string, format: uri, nullable: true }
+
+    TreasuryWithdrawal:
+      type: object
+      required: [id, requestedBy, amountAtomic, recipientAddress, status, requiredThreshold, requiredSigners, createdAt, expiresAt]
+      properties:
+        id: { type: string }
+        requestedBy: { type: string }
+        amountAtomic: { type: string }
+        recipientAddress: { type: string }
+        reason: { type: string }
+        supportingDocsUrl: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/WithdrawalStatus' }
+        signatures:
+          type: array
+          items:
+            type: object
+            properties:
+              signer: { type: string }
+              signature: { type: string }
+              signedAt: { type: string, format: date-time }
+        requiredThreshold: { type: integer }
+        requiredSigners: { type: integer }
+        safeTxHash: { type: string, nullable: true }
+        executionTxHash: { type: string, nullable: true }
+        arcScanUrl: { type: string, nullable: true }
+        executedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+
+    WithdrawalPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/TreasuryWithdrawal' }
+
+    HotWalletState:
+      type: object
+      required: [address, balanceAtomic, dailyCapAtomic, usedTodayAtomic, drainProtectionActive]
+      properties:
+        address: { type: string }
+        balanceAtomic: { type: string }
+        dailyCapAtomic: { type: string }
+        usedTodayAtomic: { type: string }
+        refillThresholdAtomic: { type: string }
+        nextRefillEstimate: { type: string, format: date-time, nullable: true }
+        drainProtectionActive: { type: boolean }
+        lastRefillAt: { type: string, format: date-time, nullable: true }
+        network: { type: string }
+
+    RefillPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/TreasuryTransaction' }
+
+    # ---------- Fees --------------------------------------------------------
+
+    FeeSchedule:
+      type: object
+      required: [agentId, currentTier, prior30dVolumeAtomic, totalLifetimeVolumeAtomic]
+      properties:
+        agentId: { type: string }
+        currentTier: { $ref: '#/components/schemas/FeeTier' }
+        tierEffectiveAt: { type: string, format: date-time }
+        prior30dVolumeAtomic: { type: string }
+        totalLifetimeVolumeAtomic: { type: string }
+        totalLifetimeFeePaidAtomic: { type: string }
+        totalLifetimeRebateReceivedAtomic: { type: string }
+        customFeeBps: { type: integer, nullable: true }
+        nextEvaluationAt: { type: string, format: date-time }
+        nextTierThresholdAtomic: { type: string, nullable: true }
+        nextTier: { $ref: '#/components/schemas/FeeTier' }
+
+    FeeQuote:
+      type: object
+      required: [totalAtomic, feeAtomic, netAtomic, feeBps, gasAmortizationAtomic]
+      properties:
+        totalAtomic: { type: string }
+        feeAtomic: { type: string }
+        netAtomic: { type: string }
+        feeBps: { type: integer }
+        feeBreakdown:
+          type: object
+          properties:
+            protocolFeeBps: { type: integer }
+            protocolFeeAtomic: { type: string }
+            gasAmortizationAtomic: { type: string }
+            batchingTier: { $ref: '#/components/schemas/BatchingTier' }
+            tier: { $ref: '#/components/schemas/FeeTier' }
+            rebateEligible: { type: boolean }
+
+    FeeTierInfo:
+      type: object
+      required: [tier, feeBps, volumeThresholdAtomic]
+      properties:
+        tier: { $ref: '#/components/schemas/FeeTier' }
+        feeBps: { type: integer }
+        volumeThresholdAtomic: { type: string }
+        description: { type: string }
+
+    # ---------- Rebates -----------------------------------------------------
+
+    RebatePaymentIntent:
+      type: object
+      required: [id, agentId, periodYear, periodMonth, priorVolumeAtomic, rebateAtomic, status, createdAt]
+      properties:
+        id: { type: string }
+        agentId: { type: string }
+        periodYear: { type: integer }
+        periodMonth: { type: integer }
+        priorVolumeAtomic: { type: string }
+        priorAverageFeeBps: { type: integer }
+        currentTierBps: { type: integer }
+        tier: { $ref: '#/components/schemas/FeeTier' }
+        rebateAtomic: { type: string }
+        status: { $ref: '#/components/schemas/PaymentIntentStatus' }
+        paymentIntentId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        executedAt: { type: string, format: date-time, nullable: true }
+
+    RebatePage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/RebatePaymentIntent' }
+
+    # ---------- Reconciliation ----------------------------------------------
+
+    ReconciliationReport:
+      type: object
+      required: [id, reportType, startedAt, status]
+      properties:
+        id: { type: string }
+        reportType: { type: string, enum: [HOURLY, DAILY, MANUAL] }
+        startedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time, nullable: true }
+        vaultsChecked: { type: integer }
+        receiptsChecked: { type: integer }
+        driftsDetected: { type: integer }
+        totalDriftAtomic: { type: string }
+        driftDetails:
+          type: array
+          items:
+            type: object
+            properties:
+              vaultId: { type: string }
+              expectedAtomic: { type: string }
+              actualAtomic: { type: string }
+              deltaAtomic: { type: string }
+        status: { type: string, enum: [RUNNING, SUCCESS, DRIFT_DETECTED, FAILED] }
+        error: { type: string, nullable: true }
+        triggeredBy: { type: string, nullable: true }
+
+    ReconciliationReportPage:
+      allOf:
+        - $ref: '#/components/schemas/CursorPage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/ReconciliationReport' }

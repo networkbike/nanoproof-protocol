@@ -122,7 +122,56 @@ See [`docs/citation-engine.md`](./docs/citation-engine.md) for the canonical arc
 
 ---
 
-## Phase 4 — AI Research Agent ⬜ Planned  · Lepton-tagged
+## Phase 4 — Payment Engine ⬜ Planned  · Lepton-tagged
+
+**Goal:** Turn CitationEvents into settled USDC payouts to Creator vaults on Arc, with hash-chained Receipts, ArcScan-verifiable, treasury-managed, fee-aware, and audit-ready.
+
+### Architecture (complete)
+- [`docs/payment-engine.md`](./docs/payment-engine.md) — overview + 8-stage pipeline.
+- [`docs/settlement-arc.md`](./docs/settlement-arc.md) — Arc L1, x402, Circle Gateway.
+- [`docs/creator-vaults.md`](./docs/creator-vaults.md) — vault model + custody.
+- [`docs/revenue-allocation.md`](./docs/revenue-allocation.md) — splits + org policy + recursive royalties.
+- [`docs/arcscan-verification.md`](./docs/arcscan-verification.md) — hash-chained Receipts.
+- [`docs/payment-audit.md`](./docs/payment-audit.md) — audit trail + replay + dispute.
+- [`docs/treasury-management.md`](./docs/treasury-management.md) — multisig treasury + hot wallet + KMS.
+- [`docs/fee-structure.md`](./docs/fee-structure.md) — 0.5% default + volume tiers + batching.
+- [`docs/payout-workflows.md`](./docs/payout-workflows.md) — 12 end-to-end flows.
+- [`apps/api/prisma/schema.payment-engine.prisma`](./apps/api/prisma/schema.payment-engine.prisma) — Vault, PaymentIntent, Payout, Receipt, Treasury, Fee models.
+- [`apps/api/openapi/payment-engine.yaml`](./apps/api/openapi/payment-engine.yaml) — OpenAPI 3.1 spec.
+- [`packages/payment-engine/`](./packages/payment-engine/) — `core/`, `settlement/`, `vaults/`, `allocation/`, `receipts/`, `treasury/`, `fees/`, `x402/`, `types/`, `interfaces/`, `docs/`, `tests/` (each with README).
+
+### Implementation issues
+25 implementation tickets live at [`.github/issues/phase-4/`](./.github/issues/phase-4/). See [the index](./.github/issues/phase-4/README.md) for execution order.
+
+### Deliverables (mapped to issues)
+- [ ] PaymentEngine orchestrator (`P4-001`)
+- [ ] Aggregator + Allocator + Quoter (`P4-002`, `P4-003`, `P4-004`)
+- [ ] x402 envelope signer (`P4-005`)
+- [ ] Arc client + Circle Gateway client (`P4-006`, `P4-007`)
+- [ ] VaultManager (`P4-008`)
+- [ ] FeeCalculator + TierEvaluator + RebateEngine (`P4-009`)
+- [ ] TreasuryManager + HotWallet + drain protection (`P4-010`, `P4-019`)
+- [ ] ReceiptWriter + HashChain + Verifier (`P4-011`)
+- [ ] Prisma migration + append-only triggers (`P4-012`)
+- [ ] Shared Zod schemas + NP_* errors (`P4-013`, `P4-025`)
+- [ ] REST controllers (`P4-014`, `P4-015`, `P4-016`)
+- [ ] Reconciler (`P4-017`)
+- [ ] Replay tooling (`P4-018`)
+- [ ] FraudGate + clawback + multisig withdrawals (`P4-020`, `P4-021`, `P4-022`)
+- [ ] Rate limiting (`P4-023`)
+- [ ] Full end-to-end acceptance test on Arc testnet (`P4-024`)
+
+### Acceptance
+- A 1000-payout batch settles on Arc testnet in <2s end-to-end via Circle Gateway.
+- Every Receipt has a public ArcScan URL + verified hash chain link.
+- Splits honor basisPoints to the atomic unit (zero-loss guarantee).
+- Per-Creator + per-Agent period caps enforced pre-execution.
+- Reconciliation diff = 0 over a 24h test window.
+- Hot-wallet drain protection triggers at the configured cap.
+
+---
+
+## Phase 5 — AI Research Agent ⬜ Planned  · Lepton-tagged
 
 **Goal:** Ship the reference implementation of an agent that uses the protocol — so judges and integrators can see NanoProof working end-to-end.
 
@@ -136,25 +185,6 @@ See [`docs/citation-engine.md`](./docs/citation-engine.md) for the canonical arc
 ### Acceptance
 - A user can ask a question, see a streaming answer with citations, and watch testnet USDC flow to creators in real time.
 - The demo video fits within the Lepton ≤3-min submission constraint.
-
----
-
-## Phase 5 — Payment Engine ⬜ Planned  · Lepton-tagged
-
-**Goal:** Execute the per-citation payouts via Circle Gateway + x402 + Arc settlement.
-
-### Deliverables
-- [ ] `packages/payment-engine` with quote → aggregate → sign → batch → settle pipeline
-- [ ] Circle Gateway client with batching
-- [ ] x402 challenge sign + verify implementation
-- [ ] Arc L1 client (viem-based) for USDC transfers
-- [ ] Idempotent PaymentIntent lifecycle
-- [ ] Webhook receivers for Circle + Arc finality events
-- [ ] LedgerEntry writes with txHash anchoring
-
-### Acceptance
-- An agent can submit 100 CitationEvents across 4 creators and see 4 payouts settle on Arc in <2s end-to-end, with all receipts verifiable on ArcScan.
-- Idempotency test: re-submitting the same intent never double-pays.
 
 ---
 

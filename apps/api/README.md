@@ -125,6 +125,71 @@ The Phase 2 canonical OpenAPI spec lives at [`openapi/creator-registry.yaml`](./
 | `/v1/analytics/fraud` | GET | Clerk (operator) | Fraud-detection metrics |
 | `/v1/analytics/export.csv` | GET | Clerk (operator) | Stream CSV export |
 
+### Payment Engine (Phase 4)
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/v1/vaults` | POST | Clerk | Create a Creator vault |
+| `/v1/vaults` | GET | Clerk | List vaults |
+| `/v1/vaults/:id` | GET | Public | Read a vault |
+| `/v1/vaults/:id` | PATCH | Clerk (owner) | Update vault (label, splits, isPrimary) |
+| `/v1/vaults/:id/pause` | POST | Clerk (owner) | Pause a vault |
+| `/v1/vaults/:id/resume` | POST | Clerk (owner) | Resume a vault |
+| `/v1/vaults/:id/migrate` | POST | Clerk (owner) | Migrate to a new wallet |
+| `/v1/vaults/:id/receipts` | GET | Public | List Receipts to a vault |
+| `/v1/vaults/:id/balance` | GET | Public | Current onchain USDC balance |
+| `/v1/payments/intents` | POST | ApiKey | Create a PaymentIntent |
+| `/v1/payments/intents` | GET | ApiKey | List PaymentIntents |
+| `/v1/payments/intents/:id` | GET | Public | Read a PaymentIntent |
+| `/v1/payments/intents/:id/execute` | POST | ApiKey | Execute (sign + batch + settle) |
+| `/v1/payments/intents/:id/pause` | POST | Clerk (operator) | Pause a PaymentIntent |
+| `/v1/payments/quotes/:id` | GET | Public | Read a PaymentQuote |
+| `/v1/payouts` | GET | ApiKey | List Payouts |
+| `/v1/payouts/:id` | GET | Public | Read a Payout |
+| `/v1/payouts/:id/retry` | POST | Clerk (operator) | Retry a failed Payout |
+| `/v1/receipts` | GET | Public | List Receipts |
+| `/v1/receipts/:id` | GET | Public | Read a Receipt |
+| `/v1/receipts/by-tx/:txHash` | GET | Public | Lookup a Receipt by txHash |
+| `/v1/receipts/:id/verify` | GET | Public | Independent verification |
+| `/v1/treasury` | GET | Public | Treasury state |
+| `/v1/treasury/balance` | GET | Public | Treasury balances |
+| `/v1/treasury/transactions` | GET | Public | Treasury transactions |
+| `/v1/treasury/withdrawals` | POST | Clerk (operator) | Initiate a withdrawal |
+| `/v1/treasury/withdrawals/:id/sign` | POST | Clerk (operator) | Co-sign a withdrawal |
+| `/v1/treasury/hot-wallet` | GET | Public | Hot wallet state + drain protection |
+| `/v1/fees/agent/:agentId` | GET | ApiKey | Agent fee schedule |
+| `/v1/fees/agent/:agentId/quote` | POST | ApiKey | Quote fee for a hypothetical intent |
+| `/v1/fees/tiers` | GET | Public | List fee tiers |
+| `/v1/rebates` | GET | ApiKey | List rebates |
+| `/v1/reconciliation/reports` | GET | Clerk (operator) | Reconciliation reports |
+| `/v1/reconciliation/run` | POST | Clerk (operator) | Trigger ad-hoc reconciliation |
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/v1/citations/analyze` | POST | ApiKey | Analyze an AI response (dry run) |
+| `/v1/citations/record` | POST | ApiKey | Persist an Attribution (atomic write) |
+| `/v1/citations` | GET | ApiKey | List Citations (filterable) |
+| `/v1/citations/:id` | GET | ApiKey | Read a Citation (with Evidence + CreatorMatch) |
+| `/v1/citations/:id/dispute` | POST | Clerk (owner) | File a Creator-raised dispute |
+| `/v1/citations/source/:sourceId` | GET | Public | List Citations of a Source |
+| `/v1/citations/creator/:creatorId` | GET | Clerk (owner) | List Citations received by a Creator |
+| `/v1/attributions/calculate` | POST | ApiKey | Recompute an Attribution under a new policy version |
+| `/v1/attributions/:id` | GET | Public | Read an Attribution |
+| `/v1/fingerprints/generate` | POST | Clerk | Generate a Source fingerprint |
+| `/v1/fingerprints/:id` | GET | Public | Read a Fingerprint |
+| `/v1/fingerprints/by-url` | GET | Public | Lookup by URL |
+| `/v1/fingerprints/by-content/:hash` | GET | Public | Lookup by content hash |
+| `/v1/fingerprints/source/:sourceId` | GET | Public | List Fingerprint versions for a Source |
+| `/v1/analytics/protocol` | GET | Public | Public protocol metrics |
+| `/v1/analytics/top-sources` | GET | Public | Top Sources by citation volume |
+| `/v1/analytics/top-domains` | GET | Public | Top Domains by citation volume |
+| `/v1/analytics/top-creators` | GET | Public | Most-referenced Creators |
+| `/v1/analytics/creator/:id` | GET | Clerk (owner) | Creator-private metrics |
+| `/v1/analytics/source/:id` | GET | Public | Source metrics |
+| `/v1/analytics/agent/:id` | GET | ApiKey | Agent metrics |
+| `/v1/analytics/fraud` | GET | Clerk (operator) | Fraud-detection metrics |
+| `/v1/analytics/export.csv` | GET | Clerk (operator) | Stream CSV export |
+
 ---
 
 ## Environment
