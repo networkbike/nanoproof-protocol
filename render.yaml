@@ -4,36 +4,20 @@
 # Deploy with: Render Dashboard → New → Blueprint → point at this file.
 # Schema: https://render.com/schema/render.yaml.json
 #
-# Creates:
-#   - nanoproof-db    : Postgres 16 (free tier, 256 MB, 1 GB storage, 90-day)
-#   - nanoproof-api   : NestJS API (Web Service, Node 22)
-#   - nanoproof-web   : Next.js 15 frontend (Web Service)
-#
-# All three deploy from the same GitHub repo on push to `main`.
-#
-# NOTES:
-#   - Postgres is declared under top-level `databases:` (NOT services:),
-#     per Render's Blueprint schema. Putting it under `services:` with
-#     `type: pserv` is rejected with "invalid runtime".
-#   - `runtime: node` is a native-language runtime; valid values are:
-#     node, python, elixir, go, ruby, rust, docker, image, static.
-#   - `startCommand` is REQUIRED for non-Docker services.
-#   - `autoDeploy` (boolean) was renamed to `autoDeployTrigger` (one of
-#     `commit` | `checksPass` | `off`) — using `commit` here.
+# IMPORTANT: Render services have IMMUTABLE runtime. Once a service is
+# created with `runtime: node`, it cannot be changed to `runtime: docker`.
+# This file uses `runtime: node` (native). The .node-version file in the
+# repo root pins Node to 22.11.0 which has corepack 0.31+ with the new
+# npm signing keys (fixes the pnpm 9.x "Cannot find matching keyid" error).
 # =============================================================================
 
 databases:
-  # --------------------------------------------------------------------------
-  # Postgres 16 (managed)
-  # --------------------------------------------------------------------------
   - name: nanoproof-db
-    plan: free                       # 256 MB RAM, 1 GB storage, 90-day expiry
+    plan: free
     region: oregon
     databaseName: nanoproof
     user: nanoproof
     postgresMajorVersion: '16'
-    # Render injects DATABASE_URL into the api service automatically
-    # via fromDatabase below. No env vars needed here.
 
 services:
   # --------------------------------------------------------------------------
@@ -41,13 +25,24 @@ services:
   # --------------------------------------------------------------------------
   - type: web
     name: nanoproof-api
-    runtime: docker
-    plan: free                       # spins down after 15 min idle (fine for demos)
+    runtime: node
+    plan: free
     region: oregon
     rootDir: apps/api
-    dockerfilePath: ./Dockerfile
-    dockerContext: ../..
-    dockerCommand: sh -c "npx --no-install prisma migrate deploy || true; node dist/apps/api/src/main.js"
+    buildCommand: |
+      cd ../.. && \
+      npm install -g corepack@latest --silent && \
+      corepack enable --install-directory /usr/local/bin && \
+      corepack prepare pnpm@9.15.9 --activate && \
+      pnpm --version && \
+      pnpm install --frozen-lockfile && \
+      pnpm --filter @nanoproof/shared build && \
+      pnpm --filter @nanoproof/api db:generate && \
+      pnpm --filter @nanoproof/api build
+    preDeployCommand: |
+      cd ../.. && \
+      pnpm --filter @nanoproof/api exec prisma migrate deploy
+    startCommand: node dist/apps/api/src/main.js
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
@@ -57,6 +52,8 @@ services:
         value: 4000
       - key: LOG_LEVEL
         value: info
+      - key: NODE_VERSION
+        value: 22.11.0
       - key: DATABASE_URL
         fromDatabase:
           name: nanoproof-db
@@ -66,7 +63,7 @@ services:
       - key: DATABASE_POOL_TIMEOUT_MS
         value: 5000
       - key: CORS_ORIGINS
-        sync: false                # set in dashboard after web deploy
+        sync: false
       - key: NANOPROOF_DEMO_MODE
         value: "true"
       - key: PAYMENTS_ENABLED
@@ -87,17 +84,27 @@ services:
   # --------------------------------------------------------------------------
   - type: web
     name: nanoproof-web
-    runtime: docker
+    runtime: node
     plan: free
     region: oregon
     rootDir: apps/web
-    dockerfilePath: ./Dockerfile
-    dockerContext: ../..
-    dockerCommand: sh -c "PORT=10000 HOSTNAME=0.0.0.0 node node_modules/next/dist/bin/next start -p 10000"
+    buildCommand: |
+      cd ../.. && \
+      npm install -g corepack@latest --silent && \
+      corepack enable --install-directory /usr/local/bin && \
+      corepack prepare pnpm@9.15.9 --activate && \
+      pnpm --version && \
+      pnpm install --frozen-lockfile && \
+      pnpm --filter @nanoproof/shared build && \
+      pnpm --filter @nanoproof/agent build && \
+      pnpm --filter @nanoproof/web build
+    startCommand: cd ../.. && node apps/web/node_modules/next/dist/bin/next start -p 3000 -H 0.0.0.0
     autoDeployTrigger: commit
     envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
       - key: NEXT_PUBLIC_API_URL
-        sync: false                # set to https://nanoproof-api.onrender.com
+        sync: false
       - key: NEXT_PUBLIC_DEMO_MODE
         value: "true"
       - key: NEXT_TELEMETRY_DISABLED
