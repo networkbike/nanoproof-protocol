@@ -41,24 +41,13 @@ services:
   # --------------------------------------------------------------------------
   - type: web
     name: nanoproof-api
-    runtime: node
+    runtime: docker
     plan: free                       # spins down after 15 min idle (fine for demos)
     region: oregon
-    rootDir: apps/api                # Render's build runs from this subdir
-    buildCommand: |
-      cd ../.. && \
-      npm install -g corepack@latest --silent && \
-      corepack enable --install-directory /usr/local/bin && \
-      corepack prepare pnpm@9.15.9 --activate && \
-      pnpm --version && \
-      pnpm install --frozen-lockfile && \
-      pnpm --filter @nanoproof/shared build && \
-      pnpm --filter @nanoproof/api db:generate && \
-      pnpm --filter @nanoproof/api build
-    preDeployCommand: |
-      cd ../.. && \
-      pnpm --filter @nanoproof/api exec prisma migrate deploy
-    startCommand: node dist/apps/api/src/main.js
+    rootDir: apps/api
+    dockerfilePath: ./Dockerfile
+    dockerContext: ../..
+    dockerCommand: sh -c "npx --no-install prisma migrate deploy || true; node dist/apps/api/src/main.js"
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
@@ -98,21 +87,13 @@ services:
   # --------------------------------------------------------------------------
   - type: web
     name: nanoproof-web
-    runtime: node
+    runtime: docker
     plan: free
     region: oregon
     rootDir: apps/web
-    buildCommand: |
-      cd ../.. && \
-      npm install -g corepack@latest --silent && \
-      corepack enable --install-directory /usr/local/bin && \
-      corepack prepare pnpm@9.15.9 --activate && \
-      pnpm --version && \
-      pnpm install --frozen-lockfile && \
-      pnpm --filter @nanoproof/shared build && \
-      pnpm --filter @nanoproof/agent build && \
-      pnpm --filter @nanoproof/web build
-    startCommand: cd ../.. && node apps/web/node_modules/next/dist/bin/next start -p 3000 -H 0.0.0.0
+    dockerfilePath: ./Dockerfile
+    dockerContext: ../..
+    dockerCommand: sh -c "PORT=3000 HOSTNAME=0.0.0.0 node node_modules/next/dist/bin/next start -p 3000"
     autoDeployTrigger: commit
     envVars:
       - key: NEXT_PUBLIC_API_URL
