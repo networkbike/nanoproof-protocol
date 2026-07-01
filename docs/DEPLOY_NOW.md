@@ -29,7 +29,7 @@ railway variables set DATABASE_POOL_SIZE=10
 railway variables set NANOPROOF_DEMO_MODE=true
 railway variables set PAYMENTS_ENABLED=true
 railway variables set CITATION_ENGINE_ENABLED=true
-railway variables set ARC_RPC_URL=https://testnet-rpc.arc.io
+railway variables set ARC_RPC_URL=https://rpc.testnet.arc.network
 railway variables set ARCSCAN_URL=https://testnet.arcscan.app
 railway variables set RATE_LIMIT_PER_MINUTE=600
 railway up
