@@ -47,6 +47,8 @@ services:
     rootDir: apps/api                # Render's build runs from this subdir
     buildCommand: |
       cd ../.. && \
+      corepack enable && \
+      corepack prepare pnpm@9.15.9 --activate && \
       pnpm install --frozen-lockfile && \
       pnpm --filter @nanoproof/shared build && \
       pnpm --filter @nanoproof/api db:generate && \
@@ -62,6 +64,8 @@ services:
         value: 4000
       - key: LOG_LEVEL
         value: info
+      - key: PNPM_VERSION
+        value: 9.15.9
       - key: DATABASE_URL
         fromDatabase:
           name: nanoproof-db
@@ -98,6 +102,8 @@ services:
     rootDir: apps/web
     buildCommand: |
       cd ../.. && \
+      corepack enable && \
+      corepack prepare pnpm@9.15.9 --activate && \
       pnpm install --frozen-lockfile && \
       pnpm --filter @nanoproof/shared build && \
       pnpm --filter @nanoproof/agent build && \
@@ -105,6 +111,8 @@ services:
     startCommand: pnpm start
     autoDeployTrigger: commit
     envVars:
+      - key: PNPM_VERSION
+        value: 9.15.9
       - key: NEXT_PUBLIC_API_URL
         sync: false                # set to https://nanoproof-api.onrender.com
       - key: NEXT_PUBLIC_DEMO_MODE
