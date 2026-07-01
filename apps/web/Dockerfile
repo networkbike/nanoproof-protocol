@@ -1,5 +1,5 @@
 # =============================================================================
-# NanoProof Web — production Dockerfile (Render runtime: docker)
+# NanoProof Web — production Dockerfile (Fly.io / generic Docker)
 # =============================================================================
 
 FROM node:22-bookworm-slim AS base
@@ -40,11 +40,6 @@ COPY --from=build /repo/package.json ./
 
 WORKDIR /app/apps/web
 
-# Render injects PORT=10000 for web services. Next.js reads PORT env var
-# when started with -p $PORT. EXPOSE 10000 for the port scan.
-EXPOSE 10000
+EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD sh -c 'node -e "require(\"http\").get(\"http://localhost:10000\", r => process.exit(r.statusCode < 500 ? 0 : 1)).on(\"error\", () => process.exit(1))"'
-
-CMD ["sh", "-c", "PORT=10000 HOSTNAME=0.0.0.0 node node_modules/next/dist/bin/next start -p 10000"]
+CMD ["sh", "-c", "PORT=3000 HOSTNAME=0.0.0.0 node node_modules/next/dist/bin/next start -p 3000"]
