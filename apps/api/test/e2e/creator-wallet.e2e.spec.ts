@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test } from "@nestjs/testing";
-import { INestApplication, ValidationPipe } from "@nestjs/common";
+import { INestApplication } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import request from "supertest";
@@ -15,9 +15,9 @@ let server: ReturnType<INestApplication["getHttpServer"]>;
 beforeAll(async () => {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = moduleRef.createNestApplication();
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-  );
+  // No global ValidationPipe — we use per-endpoint ZodValidationPipe.
+  // Loading the class-validator-backed ValidationPipe would hang on
+  // Termux (and is a no-op for our Zod-based validation anyway).
   app.useGlobalFilters(new HttpExceptionFilter());
   await app.init();
   server = app.getHttpServer();
