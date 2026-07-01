@@ -1,0 +1,38 @@
+# Default code owners for the NanoProof Protocol repository.
+# Each line is a file pattern followed by one or more owners.
+
+# Global default — falls back to the maintainers team.
+*                       @networkbike
+
+# Frontend
+/apps/web/**            @networkbike
+/apps/web/**/*.tsx      @networkbike
+
+# API
+/apps/api/**            @networkbike
+
+# Public SDK surface — extra scrutiny
+/packages/sdk/**        @networkbike
+/packages/sdk/package.json
+
+# Engines — protocol-critical
+/packages/citation-engine/**  @networkbike
+/packages/payment-engine/**   @networkbike
+
+# Smart contracts — highest scrutiny
+/contracts/**           @networkbike
+/contracts/src/PaymentRouter.sol   @networkbike
+/contracts/src/CitationRegistry.sol @networkbike
+
+# Documentation
+/docs/**                @networkbike
+/README.md              @networkbike
+/ARCHITECTURE.md        @networkbike
+/ROADMAP.md             @networkbike
+/CONTRIBUTING.md        @networkbike
+/SECURITY.md            @networkbike
+
+# CI / tooling — at least one extra review
+/.github/workflows/**   @networkbike
+
+# Anything else falls through to the default owner.
