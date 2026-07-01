@@ -50,11 +50,14 @@ COPY --from=build /repo/package.json ./
 
 WORKDIR /app/apps/api
 
-EXPOSE 4000
+# Render web services default to PORT=10000. Our app reads process.env.PORT
+# in main.ts (line 15: const port = Number(process.env.PORT ?? 4000))
+# so it picks up 10000 automatically. EXPOSE for the healthcheck port scan.
+EXPOSE 10000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD sh -c 'node -e "require(\"http\").get(\"http://localhost:10000/health\", r => process.exit(r.statusCode === 200 ? 0 : 1)).on(\"error\", () => process.exit(1))"'
 
-# Start the API. Migrations run on first request via Prisma's lazy init,
-# OR we can pre-apply via `npx prisma migrate deploy` before node starts.
+# Start the API. Migrations run via dockerCommand in render.yaml
+# (which runs INSIDE this container with DATABASE_URL set).
 CMD ["sh", "-c", "node dist/apps/api/src/main.js"]
