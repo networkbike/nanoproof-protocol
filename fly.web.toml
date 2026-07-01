@@ -1,0 +1,40 @@
+# Fly.io config for the NanoProof Web service
+# Deploy with: cd /path/to/repo && fly deploy --config fly.web.toml --dockerfile apps/web/Dockerfile
+
+app = "nanoproof-web"
+primary_region = "iad"
+
+[build]
+  dockerfile = "apps/web/Dockerfile"
+  build-target = "runtime"
+
+[deploy]
+  release_command = "node -e \"console.log('release OK')\""
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  NEXT_TELEMETRY_DISABLED = "1"
+  NEXT_PUBLIC_DEMO_MODE = "true"
+  # NEXT_PUBLIC_API_URL is set via `fly secrets set` after first deploy
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"
+    method = "GET"
+    path = "/"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpus = 1
+  cpu_kind = "shared"
