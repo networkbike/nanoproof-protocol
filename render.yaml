@@ -1,0 +1,104 @@
+# =============================================================================
+# NanoProof Protocol — Render.com Blueprint
+#
+# Deploy with: `render blueprint launch` (or via the Render Dashboard →
+# New → Blueprint → point at this file).
+#
+# Creates:
+#   - nanoproof-db    : Postgres 16 (free tier, 256 MB, 1 GB storage)
+#   - nanoproof-api   : NestJS API (Web Service, Node 22)
+#   - nanoproof-web   : Next.js 15 frontend (Web Service)
+#
+# All three deploy from the same GitHub repo on push to `main`.
+# =============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # Postgres
+  # --------------------------------------------------------------------------
+  - type: pserv
+    name: nanoproof-db
+    plan: free                       # 256 MB RAM, 1 GB storage, 90-day expiry
+    region: oregon
+    # Render injects DATABASE_URL into the api service automatically.
+    # We do NOT need env vars here; the database is created empty.
+
+  # --------------------------------------------------------------------------
+  # API (NestJS)
+  # --------------------------------------------------------------------------
+  - type: web
+    name: nanoproof-api
+    plan: free                       # spins down after 15 min idle (fine for demos)
+    runtime: node
+    region: oregon
+    rootDir: apps/api                # Render's build runs from this subdir
+    buildCommand: |
+      cd ../.. && \
+      pnpm install --frozen-lockfile && \
+      pnpm --filter @nanoproof/shared build && \
+      pnpm --filter @nanoproof/api db:generate && \
+      pnpm --filter @nanoproof/api build && \
+      pnpm --filter @nanoproof/api exec prisma migrate deploy
+    startCommand: node dist/apps/api/src/main.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: LOG_LEVEL
+        value: info
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nanoproof-db
+          property: connectionString
+      - key: DATABASE_SHADOW_URL
+        fromDatabase:
+          name: nanoproof-db
+          property: connectionString
+      - key: DATABASE_POOL_SIZE
+        value: 10
+      - key: DATABASE_POOL_TIMEOUT_MS
+        value: 5000
+      - key: CORS_ORIGINS
+        sync: false                # set manually in dashboard after web deploy
+      - key: NANOPROOF_DEMO_MODE
+        value: "true"
+      - key: PAYMENTS_ENABLED
+        value: "true"
+      - key: CITATION_ENGINE_ENABLED
+        value: "true"
+      - key: ARC_RPC_URL
+        value: https://testnet-rpc.arc.io
+      - key: ARC_CHAIN_ID
+        value: arc-testnet
+      - key: ARCSCAN_URL
+        value: https://testnet.arcscan.app
+      - key: RATE_LIMIT_PER_MINUTE
+        value: 600
+
+  # --------------------------------------------------------------------------
+  # Web (Next.js)
+  # --------------------------------------------------------------------------
+  - type: web
+    name: nanoproof-web
+    plan: free
+    runtime: node
+    region: oregon
+    rootDir: apps/web
+    buildCommand: |
+      cd ../.. && \
+      pnpm install --frozen-lockfile && \
+      pnpm --filter @nanoproof/shared build && \
+      pnpm --filter @nanoproof/agent build && \
+      pnpm --filter @nanoproof/web build
+    startCommand: pnpm start
+    autoDeploy: true
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        sync: false                # set to https://nanoproof-api.onrender.com
+      - key: NEXT_PUBLIC_DEMO_MODE
+        value: "true"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
