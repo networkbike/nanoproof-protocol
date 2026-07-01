@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit + e2e tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared + agent
+        run: |
+          pnpm --filter @nanoproof/shared build
+          pnpm --filter @nanoproof/agent build
+
+      - name: Type-check
+        run: |
+          pnpm --filter @nanoproof/api type-check
+          pnpm --filter @nanoproof/web type-check
+
+      - name: Unit tests
+        run: |
+          pnpm --filter @nanoproof/api test
+          pnpm --filter @nanoproof/web test
+          pnpm --filter @nanoproof/agent test
+
+      - name: e2e tests (api)
+        run: pnpm --filter @nanoproof/api test:e2e
+        env:
+          CI: true
+
+      - name: Production build (web)
+        run: pnpm --filter @nanoproof/web build
+
+  contracts:
+    name: Solidity contracts (forge)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Build + test
+        working-directory: packages/contracts
+        run: |
+          forge --version
+          forge build
+          forge test -vv
