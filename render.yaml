@@ -39,9 +39,6 @@ services:
       pnpm --filter @nanoproof/shared build && \
       pnpm --filter @nanoproof/api db:generate && \
       pnpm --filter @nanoproof/api build
-    preDeployCommand: |
-      cd ../.. && \
-      pnpm --filter @nanoproof/api exec prisma migrate deploy
     startCommand: node dist/apps/api/src/main.js
     healthCheckPath: /health
     autoDeployTrigger: commit
