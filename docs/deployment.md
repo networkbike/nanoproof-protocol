@@ -55,7 +55,7 @@
    LOG_LEVEL=info
    CORS_ORIGINS=https://nanoproof-demo.vercel.app
    DATABASE_URL=<paste Neon pooled URL>
-   ARC_RPC_URL=https://testnet-rpc.arc.io
+   ARC_RPC_URL=https://rpc.testnet.arc.network
    USDC_ARC_TESTNET=<testnet USDC contract>
    INTERNAL_API_KEY=<mint via /v1/api-keys on first deploy>
    ```
@@ -142,7 +142,7 @@ curl https://<railway-url>/v1/healthz
 | `NODE_ENV`              | api, web  | `production`                             |
 | `CORS_ORIGINS`          | api       | Vercel URL (comma-separated)             |
 | `LOG_LEVEL`             | api       | `info` (or `debug` for development)      |
-| `ARC_RPC_URL`           | api       | `https://testnet-rpc.arc.io`             |
+| `ARC_RPC_URL`           | api       | `https://rpc.testnet.arc.network`        |
 | `USDC_ARC_TESTNET`      | api       | Arc testnet USDC contract address        |
 | `INTERNAL_API_KEY`      | api, web  | Service-to-service bearer token          |
 | `NEXT_PUBLIC_API_URL`   | web       | Public API URL (Vercel → Railway)        |

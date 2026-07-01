@@ -70,7 +70,7 @@ services:
       - key: CITATION_ENGINE_ENABLED
         value: "true"
       - key: ARC_RPC_URL
-        value: https://testnet-rpc.arc.io
+        value: https://rpc.testnet.arc.network
       - key: ARC_CHAIN_ID
         value: arc-testnet
       - key: ARCSCAN_URL
