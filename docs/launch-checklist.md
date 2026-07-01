@@ -41,7 +41,7 @@
    PAYMENTS_ENABLED=true
    CITATION_ENGINE_ENABLED=true
    RATE_LIMIT_PER_MINUTE=600
-   ARC_RPC_URL=https://testnet-rpc.arc.io
+   ARC_RPC_URL=https://rpc.testnet.arc.network
    ARC_CHAIN_ID=arc-testnet
    ARCSCAN_URL=https://testnet.arcscan.app
    ```
