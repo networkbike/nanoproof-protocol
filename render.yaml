@@ -1,14 +1,16 @@
 # =============================================================================
 # NanoProof Protocol — Render.com Blueprint
 #
-# Deploy with: Render Dashboard → New → Blueprint → point at this file.
-# Schema: https://render.com/schema/render.yaml.json
+# IMPORTANT: Render's runtime field is IMMUTABLE. To switch from
+# runtime:node to runtime:docker, the service must be DELETED and
+# recreated by Blueprint.
 #
-# IMPORTANT: Render services have IMMUTABLE runtime. Once a service is
-# created with `runtime: node`, it cannot be changed to `runtime: docker`.
-# This file uses `runtime: node` (native). The .node-version file in the
-# repo root pins Node to 22.11.0 which has corepack 0.31+ with the new
-# npm signing keys (fixes the pnpm 9.x "Cannot find matching keyid" error).
+# Current strategy: native Node 22.11.0 with simplified pnpm
+# build that does NOT use any custom corepack shimming. This
+# avoids the runner.sh initialization issue we hit when using
+# custom build scripts.
+#
+# Schema: https://render.com/schema/render.yaml.json
 # =============================================================================
 
 databases:
@@ -29,16 +31,11 @@ services:
     plan: free
     region: oregon
     rootDir: apps/api
-    buildCommand: |
-      cd ../.. && \
-      npm install -g corepack@latest --silent && \
-      corepack enable --install-directory /usr/local/bin && \
-      corepack prepare pnpm@9.15.9 --activate && \
-      pnpm --version && \
-      pnpm install --frozen-lockfile && \
-      pnpm --filter @nanoproof/shared build && \
-      pnpm --filter @nanoproof/api db:generate && \
-      pnpm --filter @nanoproof/api build
+    # Simplest possible buildCommand. Render's native node runtime
+    # expects to be able to invoke pnpm directly (not through custom
+    # corepack shims). The .node-version file pins Node 22.11.0
+    # which has the new npm signing keys.
+    buildCommand: cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @nanoproof/shared build && pnpm --filter @nanoproof/api db:generate && pnpm --filter @nanoproof/api build
     startCommand: node dist/apps/api/src/main.js
     healthCheckPath: /health
     autoDeployTrigger: commit
@@ -47,18 +44,12 @@ services:
         value: production
       - key: PORT
         value: 4000
-      - key: LOG_LEVEL
-        value: info
       - key: NODE_VERSION
         value: 22.11.0
       - key: DATABASE_URL
         fromDatabase:
           name: nanoproof-db
           property: connectionString
-      - key: DATABASE_POOL_SIZE
-        value: 10
-      - key: DATABASE_POOL_TIMEOUT_MS
-        value: 5000
       - key: CORS_ORIGINS
         sync: false
       - key: NANOPROOF_DEMO_MODE
@@ -85,16 +76,7 @@ services:
     plan: free
     region: oregon
     rootDir: apps/web
-    buildCommand: |
-      cd ../.. && \
-      npm install -g corepack@latest --silent && \
-      corepack enable --install-directory /usr/local/bin && \
-      corepack prepare pnpm@9.15.9 --activate && \
-      pnpm --version && \
-      pnpm install --frozen-lockfile && \
-      pnpm --filter @nanoproof/shared build && \
-      pnpm --filter @nanoproof/agent build && \
-      pnpm --filter @nanoproof/web build
+    buildCommand: cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @nanoproof/shared build && pnpm --filter @nanoproof/agent build && pnpm --filter @nanoproof/web build
     startCommand: cd ../.. && node apps/web/node_modules/next/dist/bin/next start -p 3000 -H 0.0.0.0
     autoDeployTrigger: commit
     envVars:
