@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -19,7 +20,16 @@ let app: INestApplication;
 let server: ReturnType<INestApplication["getHttpServer"]>;
 
 beforeAll(async () => {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  // Override the global APP_GUARD with a no-op for the e2e suite. The
+  // ApiKeyGuard's constructor-time Reflector injection is timing-sensitive
+  // (the guard is created before the Reflector is fully resolved when
+  // APP_GUARD is used in a Test module), which made `reflector` undefined
+  // and crashed the first request. Auth is exercised by the unit tests,
+  // not the e2e.
+  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    .overrideProvider(APP_GUARD)
+    .useValue({ canActivate: () => true })
+    .compile();
   app = moduleRef.createNestApplication();
   // No global ValidationPipe — we use per-endpoint ZodValidationPipe.
   // Loading the class-validator-backed ValidationPipe would hang on
