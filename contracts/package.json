@@ -18,6 +18,6 @@
   "devDependencies": {
     "forge-std": "github:foundry-rs/forge-std",
     "@openzeppelin/contracts": "^5.0.0",
-    "solhint": "^5.0.0"
+    "solhint": "^6.2.3"
   }
 }
