@@ -23,6 +23,10 @@ let server: ReturnType<INestApplication["getHttpServer"]>;
 let apiKeyToken: string;
 
 beforeAll(async () => {
+  // Wait for the pglite-socket to bind before touching the DB. The setup
+  // file returns a shared promise on globalThis so we don't have to ship
+  // a top-level await (which trips up tsconfig's commonjs).
+  await (globalThis as unknown as Record<string, Promise<unknown>>).__nanoproof_pglite_ready;
   // APP_GUARD overrides in Test.createTestingModule are unreliable:
   // APP_GUARD is a framework-internal token (not a registered provider),
   // so .overrideGuard(APP_GUARD) and .overrideProvider(APP_GUARD) silently
@@ -66,7 +70,7 @@ beforeAll(async () => {
   console.log(`[e2e] minted ApiKey ${prefix}...${last4} for creator ${testCreator.username}`);
 
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  app = moduleRef.createNestApplication();
+  app = moduleRef.createNestApplication({ logger: false });
   // No global ValidationPipe — we use per-endpoint ZodValidationPipe.
   app.useGlobalFilters(new HttpExceptionFilter());
   await app.init();
@@ -146,7 +150,7 @@ describe("Phase 2 e2e — Creator + Wallet + Verification", () => {
       })
       .set("Idempotency-Key", `test-wallet-${random}`);
 
-    expect(res.status).toBe(201);
+    expect(res.status, `status=${res.status} body=${JSON.stringify(res.body)}`).toBe(201);
     expect(res.body.verificationStatus).toBe("UNVERIFIED");
     walletId = res.body.id;
   });
@@ -155,9 +159,9 @@ describe("Phase 2 e2e — Creator + Wallet + Verification", () => {
     const res = await request(server)
       .post(`/v1/wallets/${walletId}/challenge`)
       .set(auth());
-    expect(res.status).toBe(201);
+    expect(res.status, `status=${res.status} body=${JSON.stringify(res.body)}`).toBe(201);
     expect(res.body.message).toMatch(/NanoProof Wallet Verification/);
-    expect(res.body.challengeId).toMatch(/^vch_/);
+    expect(res.body.challengeId).toMatch(/^[a-z0-9]{20,}$/); // cuid format
   });
 
   it("POST /v1/wallets/:id/verify with a valid EIP-191 signature → 200, VERIFIED", async () => {
@@ -194,7 +198,7 @@ describe("Phase 2 e2e — Creator + Wallet + Verification", () => {
     const res = await request(server)
       .get(`/v1/creators/${creatorId}/stats`)
       .set(auth());
-    expect(res.status).toBe(200);
+    expect(res.status, `status=${res.status} body=${JSON.stringify(res.body)}`).toBe(200);
     expect(res.body.walletCount).toBeGreaterThanOrEqual(2);
   });
 

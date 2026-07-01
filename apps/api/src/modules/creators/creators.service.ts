@@ -30,7 +30,8 @@ export class CreatorsService {
     const usernameCheck = UsernameSchema.safeParse(data.username);
     if (!usernameCheck.success) {
       const first = usernameCheck.error.issues[0]?.message ?? "Invalid username.";
-      throw new NPError(usernameCheck.error.issues[0]?.code === "custom" ? "NP_USERNAME_RESERVED" : "NP_VALIDATION_FAILED", {
+      const isReserved = usernameCheck.error.issues.some((i) => i.code === "custom");
+      throw new NPError(isReserved ? "NP_USERNAME_RESERVED" : "NP_VALIDATION_FAILED", {
         message: first,
         params: { username: data.username },
       });

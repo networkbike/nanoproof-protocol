@@ -30,7 +30,6 @@ import {
   RequireScopes,
   type Principal,
 } from "../../common/decorators/index.js";
-import { IdempotencyInterceptor } from "../../common/interceptors/idempotency.interceptor.js";
 import { ApiKeyScope } from "@prisma/client";
 import { ApiKeysService } from "./apikeys.service.js";
 
@@ -38,7 +37,6 @@ import { ApiKeysService } from "./apikeys.service.js";
 @ApiProduces("application/json")
 @Controller({ path: "v1/api-keys", version: undefined })
 
-@UseInterceptors(IdempotencyInterceptor)
 export class ApiKeysController {
   constructor(private readonly keys: ApiKeysService) {}
 

@@ -22,7 +22,6 @@ import { CreateCreatorSchema, UpdateCreatorSchema } from "@nanoproof/shared/sche
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe.js";
 import { ApiKeyGuard, Public, RequireScopes, CurrentPrincipal, type Principal } from "../../common/decorators/index.js";
 import { ApiKeyScope } from "@prisma/client";
-import { IdempotencyInterceptor } from "../../common/interceptors/idempotency.interceptor.js";
 import { CreatorsService } from "./creators.service.js";
 
 const ListCreatorsQuerySchema = z.object({
@@ -35,7 +34,6 @@ const ListCreatorsQuerySchema = z.object({
 @ApiTags("creators")
 @ApiProduces("application/json")
 @Controller({ path: "v1/creators", version: undefined })
-@UseInterceptors(IdempotencyInterceptor)
 export class CreatorsController {
   constructor(private readonly creators: CreatorsService) {}
 

@@ -33,7 +33,6 @@ import {
   RequireScopes,
   type Principal,
 } from "../../common/decorators/index.js";
-import { IdempotencyInterceptor } from "../../common/interceptors/idempotency.interceptor.js";
 import { ApiKeyScope } from "@prisma/client";
 import { WalletsService } from "./wallets.service.js";
 
@@ -41,7 +40,6 @@ import { WalletsService } from "./wallets.service.js";
 @ApiProduces("application/json")
 @Controller({ path: "v1/wallets", version: undefined })
 
-@UseInterceptors(IdempotencyInterceptor)
 export class WalletsController {
   constructor(private readonly wallets: WalletsService) {}
 

@@ -29,6 +29,14 @@ export class ZodValidationPipe<T extends ZodTypeAny> implements PipeTransform<un
       return this.schema.parse(value);
     } catch (err) {
       if (err instanceof ZodError) {
+        // Detect known refinement failures and map them to domain codes.
+        const reserved = err.issues.find((i) => i.code === "custom" && /reserved/i.test(i.message));
+        if (reserved) {
+          throw new NPError("NP_USERNAME_RESERVED", {
+            message: reserved.message,
+            params: { target: this.target },
+          });
+        }
         throw new NPError("NP_VALIDATION_FAILED", {
           message: `Invalid ${this.target}.`,
           params: { target: this.target, issues: err.issues },

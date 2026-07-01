@@ -18,7 +18,6 @@ import {
 } from "@nestjs/swagger";
 import { z } from "zod";
 import { ApiKeyGuard, Public, RequireScopes } from "../../common/decorators/index.js";
-import { IdempotencyInterceptor } from "../../common/interceptors/idempotency.interceptor.js";
 import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe.js";
 import { ApiKeyScope } from "@prisma/client";
 import { CitationsService } from "./citations.service.js";
@@ -38,7 +37,6 @@ const SimulateRequestSchema = z.object({
 @ApiProduces("application/json")
 @Controller({ path: "v1/citations", version: undefined })
 @UseGuards(ApiKeyGuard)
-@UseInterceptors(IdempotencyInterceptor)
 export class CitationsController {
   constructor(private readonly citations: CitationsService) {}
 
