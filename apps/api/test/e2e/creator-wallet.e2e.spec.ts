@@ -63,7 +63,7 @@ beforeAll(async () => {
   });
   apiKeyToken = plaintext;
   // eslint-disable-next-line no-console
-  console.log(`[e2e] minted ApiKey ${prefix}…${last4} for creator ${testCreator.username}`);
+  console.log(`[e2e] minted ApiKey ${prefix}...${last4} for creator ${testCreator.username}`);
 
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = moduleRef.createNestApplication();
