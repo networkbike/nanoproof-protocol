@@ -1,0 +1,2 @@
+web: cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @nanoproof/shared build && pnpm --filter @nanoproof/api db:generate && pnpm --filter @nanoproof/api build && node dist/apps/api/src/main.js
+release: pnpm exec prisma migrate deploy

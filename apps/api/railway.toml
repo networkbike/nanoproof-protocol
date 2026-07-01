@@ -1,0 +1,24 @@
+# =============================================================================
+# NanoProof API — Railway configuration
+#
+# Railway watches the repo (or the apps/api subtree) and runs `nest start`.
+# Environment variables live in the Railway dashboard.
+#
+# Deploy: `railway up` (with `railway link` first) or via GitHub integration
+# pointing at this folder.
+# =============================================================================
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "cd ../.. && pnpm install && pnpm --filter @nanoproof/shared build && pnpm --filter @nanoproof/api db:generate && pnpm --filter @nanoproof/api build"
+
+[deploy]
+startCommand = "node dist/apps/api/src/main.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Resource hints (Railway auto-scales but these are the starting point)
+# cpu = "1"
+# memory = "1Gi"

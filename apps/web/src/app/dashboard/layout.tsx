@@ -63,7 +63,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
-          <DemoModeBox />
+          {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && <DemoModeBox />}
         </aside>
         <main className="min-w-0 flex-1">{children}</main>
       </div>

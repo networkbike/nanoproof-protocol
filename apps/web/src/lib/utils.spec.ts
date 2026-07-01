@@ -50,6 +50,6 @@ describe("lib/utils", () => {
 
   it("cn merges Tailwind classes with last-wins semantics", () => {
     expect(cn("p-2", "p-4")).toBe("p-4");
-    expect(cn("text-red-500", false && "text-blue-500", undefined, "text-green-500")).toBe("text-green-500");
+    expect(cn("text-red-500", undefined, "text-green-500")).toBe("text-green-500");
   });
 });

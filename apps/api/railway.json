@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @nanoproof/shared build && pnpm --filter @nanoproof/api db:generate && pnpm --filter @nanoproof/api build"
+  },
+  "deploy": {
+    "startCommand": "node dist/apps/api/src/main.js",
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}

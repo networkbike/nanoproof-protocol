@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @nanoproof/shared build && pnpm --filter @nanoproof/agent build && pnpm --filter @nanoproof/web build",
+  "installCommand": "echo 'install is part of buildCommand (monorepo)'",
+  "outputDirectory": "apps/web/.next",
+  "trailingSlash": false,
+  "cleanUrls": true,
+  "regions": ["iad1"]
+}
