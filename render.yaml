@@ -47,6 +47,9 @@ services:
     rootDir: apps/api                # Render's build runs from this subdir
     buildCommand: |
       cd ../.. && \
+      npm install -g pnpm@9.15.9 --silent && \
+      export PATH="/usr/local/bin:$PATH" && \
+      pnpm --version && \
       pnpm install --frozen-lockfile && \
       pnpm --filter @nanoproof/shared build && \
       pnpm --filter @nanoproof/api db:generate && \
@@ -100,6 +103,9 @@ services:
     rootDir: apps/web
     buildCommand: |
       cd ../.. && \
+      npm install -g pnpm@9.15.9 --silent && \
+      export PATH="/usr/local/bin:$PATH" && \
+      pnpm --version && \
       pnpm install --frozen-lockfile && \
       pnpm --filter @nanoproof/shared build && \
       pnpm --filter @nanoproof/agent build && \
