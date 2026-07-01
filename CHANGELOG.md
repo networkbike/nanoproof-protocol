@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase 3 — Citation Engine thin slice** (← the bulk of this commit)
+  - `Fingerprint` model + migration (`fingerprints` table with `(sourceId, algorithm, hash)` unique)
+  - `Citation.matchKind` column (`URL` / `DOMAIN` / future `FINGERPRINT` / `QUOTE`)
+  - `CitationsDetector` service implementing the simplified detection pipeline (URL extraction → normalization → Source matching → scoring → recording)
+  - `POST /v1/citations/detect` accepts agent response text, returns Citation rows tied to real Creators + total USDC + unresolved URL list + `X-Citation-Receipt` header
+  - `POST /v1/payments/settle` accepts a `responseId`, settles one `Payment` row per PENDING Citation (replaces MVP `simulate` semantics)
+  - Backwards-compat shims: `/v1/citations/simulate` + `/v1/payments/simulate` still work for the old dashboard
+  - Web simulator page rewritten to call `/detect` then `/settle` — the full detect→pay pipeline
+  - URL extractor unit suite (11 tests) covering dedup, punctuation, snippet window, normalization
+
+## [0.2.0] — Phase 2 Implementation
+
+### Added
 - **Phase 2 — Creator Registry implementation** (← the bulk of this commit)
   - Expanded Prisma schema (Organization, OrganizationMembership, ApiKey, VerificationChallenge, SourceVerification, IdempotencyKey) + partial unique index on primary wallets
   - Migration: `apps/api/prisma/migrations/20260701000001_phase2_creator_registry/migration.sql`

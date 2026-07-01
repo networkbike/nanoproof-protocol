@@ -5,59 +5,74 @@ import { Button } from "@/components/ui/button";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-interface CitationResult {
-  id: string;
-  snippet: string;
-  kind: string;
-  matchScore: string;
-  payoutAmountUsdc: string;
+interface DetectResult {
+  responseId: string;
+  totalUsdc: string;
+  resolvedCreatorIds: string[];
+  citations: Array<{
+    id: string;
+    snippet: string;
+    kind: string;
+    matchKind: string;
+    matchScore: string;
+    payoutAmountUsdc: string;
+    sourceId: string;
+  }>;
+  unresolved: Array<{ url: string; snippet: string }>;
 }
 
-interface PaymentResult {
+interface SettleResult {
   id: string;
   amountUsdc: string;
   status: string;
+  creatorId: string;
 }
 
+const DEFAULT_RESPONSE = `Following Smith's analysis on Arc nanopayments [1], agents can settle $0.001 per citation in USDC.
+The protocol sketch at https://demo.nanoproof.xyz/hello demonstrates settlement via Circle Gateway.
+We also reference https://example.com/somewhere-else which is not registered.`;
+
 export default function SimulatePage() {
-  const [creatorId, setCreatorId] = useState("cr_demo");
-  const [sourceId, setSourceId] = useState("");
-  const [snippet, setSnippet] = useState(
-    "Following Smith's analysis of nanopayments on Arc, agents can settle $0.001 per citation in USDC."
-  );
   const [responseId, setResponseId] = useState(`resp_${Date.now()}`);
-  const [amountUsdc, setAmountUsdc] = useState("1000");
+  const [responseText, setResponseText] = useState(DEFAULT_RESPONSE);
   const [busy, setBusy] = useState(false);
-  const [citationResult, setCitationResult] = useState<CitationResult | null>(null);
-  const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
+  const [detectResult, setDetectResult] = useState<DetectResult | null>(null);
+  const [settleResult, setSettleResult] = useState<SettleResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function runSimulation() {
+  async function runPipeline() {
     setBusy(true);
     setError(null);
-    setCitationResult(null);
-    setPaymentResult(null);
+    setDetectResult(null);
+    setSettleResult(null);
 
     try {
-      const citation = await fetch(`${API_BASE}/v1/citations/simulate`, {
+      // Stage 1 — detect citations.
+      const detect = await fetch(`${API_BASE}/v1/citations/detect`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceId, snippet, responseId }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": `detect-${responseId}` },
+        body: JSON.stringify({ responseId, responseText }),
       }).then(async (r) => {
         if (!r.ok) throw new Error((await r.json()).message ?? `HTTP ${r.status}`);
-        return r.json() as Promise<CitationResult>;
+        return r.json() as Promise<DetectResult>;
       });
-      setCitationResult(citation);
+      setDetectResult(detect);
 
-      const payment = await fetch(`${API_BASE}/v1/payments/simulate`, {
+      if (detect.citations.length === 0) {
+        setError("No citations resolved. Register a Source first via the dashboard.");
+        return;
+      }
+
+      // Stage 2 — settle one Payment per Citation.
+      const settled = await fetch(`${API_BASE}/v1/payments/settle`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ creatorId, sourceId, amountUsdc }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": `settle-${responseId}` },
+        body: JSON.stringify({ responseId }),
       }).then(async (r) => {
         if (!r.ok) throw new Error((await r.json()).message ?? `HTTP ${r.status}`);
-        return r.json() as Promise<PaymentResult>;
+        return r.json() as Promise<SettleResult[]>;
       });
-      setPaymentResult(payment);
+      setSettleResult(settled);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -66,38 +81,22 @@ export default function SimulatePage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Simulator</h1>
+        <h1 className="text-3xl font-bold">Citation Pipeline</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Submit a fake citation + payment. Phase 3 + 4 replace this with real detection + Arc settlement.
+          Real Phase 3 detector + Payment settlement. Drop an agent's response text below; the engine finds every URL,
+          matches against registered Sources, and settles USDC.
         </p>
       </div>
 
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          runSimulation();
+          runPipeline();
         }}
         className="space-y-4 rounded-lg border bg-card p-6"
       >
-        <Field label="Creator ID">
-          <input
-            value={creatorId}
-            onChange={(e) => setCreatorId(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            required
-          />
-        </Field>
-        <Field label="Source ID">
-          <input
-            value={sourceId}
-            onChange={(e) => setSourceId(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            placeholder="src_..."
-            required
-          />
-        </Field>
         <Field label="Response ID">
           <input
             value={responseId}
@@ -106,28 +105,18 @@ export default function SimulatePage() {
             required
           />
         </Field>
-        <Field label="Cited snippet">
+        <Field label="Agent response (free-form text)">
           <textarea
-            value={snippet}
-            onChange={(e) => setSnippet(e.target.value)}
-            rows={3}
+            value={responseText}
+            onChange={(e) => setResponseText(e.target.value)}
+            rows={6}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            required
-          />
-        </Field>
-        <Field label="Amount (atomic USDC)">
-          <input
-            type="number"
-            value={amountUsdc}
-            onChange={(e) => setAmountUsdc(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            min={1}
             required
           />
         </Field>
 
         <Button type="submit" disabled={busy} className="w-full">
-          {busy ? "Simulating…" : "Run simulation"}
+          {busy ? "Running…" : "Run detect + settle"}
         </Button>
       </form>
 
@@ -137,27 +126,62 @@ export default function SimulatePage() {
         </div>
       )}
 
-      {citationResult && (
+      {detectResult && (
         <Result
-          title="Citation recorded"
+          title={`Detection · ${detectResult.citations.length} resolved / ${detectResult.unresolved.length} unresolved`}
           rows={[
-            ["ID", citationResult.id],
-            ["Kind", citationResult.kind],
-            ["Match score", citationResult.matchScore],
-            ["Payout (atomic USDC)", citationResult.payoutAmountUsdc],
-            ["Snippet", citationResult.snippet],
+            ["Total USDC (atomic)", detectResult.totalUsdc],
+            ["Total USDC (display)", `${(Number(detectResult.totalUsdc) / 1_000_000).toFixed(6)}`],
+            ["Resolved Creator IDs", detectResult.resolvedCreatorIds.join(", ") || "—"],
           ]}
         />
       )}
 
-      {paymentResult && (
+      {detectResult && detectResult.citations.length > 0 && (
+        <div className="rounded-lg border bg-card p-6">
+          <h2 className="font-semibold">Citations</h2>
+          <table className="mt-3 w-full text-sm">
+            <thead className="bg-muted text-left">
+              <tr>
+                <th className="p-2">Match</th>
+                <th className="p-2">Score</th>
+                <th className="p-2 text-right">Payout</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detectResult.citations.map((c) => (
+                <tr key={c.id} className="border-t">
+                  <td className="p-2 font-mono text-xs">
+                    {c.matchKind} · {c.sourceId.slice(0, 14)}…
+                  </td>
+                  <td className="p-2">{c.matchScore}</td>
+                  <td className="p-2 text-right font-mono">
+                    {c.payoutAmountUsdc} ({((Number(c.payoutAmountUsdc) / 1_000_000).toFixed(6))} USDC)
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <details className="mt-3 text-xs text-muted-foreground">
+            <summary>Unresolved links ({detectResult.unresolved.length})</summary>
+            <ul className="mt-2 space-y-1">
+              {detectResult.unresolved.map((u, i) => (
+                <li key={i} className="font-mono break-all">
+                  {u.url}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </div>
+      )}
+
+      {settleResult && (
         <Result
-          title="Payment settled"
-          rows={[
-            ["ID", paymentResult.id],
-            ["Amount (atomic USDC)", paymentResult.amountUsdc],
-            ["Status", paymentResult.status],
-          ]}
+          title={`Settled ${settleResult.length} payment(s)`}
+          rows={settleResult.map((p, i) => [
+            `Payment #${i + 1}`,
+            `${p.id.slice(0, 14)}… · ${p.amountUsdc} USDC atomic · ${p.status} · → creator ${p.creatorId.slice(0, 14)}…`,
+          ])}
         />
       )}
     </div>

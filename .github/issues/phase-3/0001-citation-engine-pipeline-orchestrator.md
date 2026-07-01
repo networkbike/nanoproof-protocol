@@ -10,6 +10,8 @@ priority: high
 depends_on: []
 milestone: Phase 3 — Citation Engine
 estimate: L
+status: implemented-partial
+milestone: phase-3-citation-engine
 ---
 
 # [Phase 3] Implement CitationEngine top-level orchestrator
@@ -31,3 +33,12 @@ Land the `CitationEngine` class in `packages/citation-engine/core/engine.ts`. It
 ## Dependencies
 
 None.
+
+
+## Resolution (thin slice)
+
+**Status:** Implemented (thin slice). Full pipeline (stages 5-10) lands later.
+**Milestone:** phase-3-citation-engine
+
+Detector in `apps/api/src/modules/citations/citations.detector.ts` + URL extraction in `url-extractor.ts`. Replaces the MVP `/v1/citations/simulate` stub with real `POST /v1/citations/detect`  that resolves URLs against registered `Source.domain` rows. Backwards-compat shims preserve the old shapes.
+

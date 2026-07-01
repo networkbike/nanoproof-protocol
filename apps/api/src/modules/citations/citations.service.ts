@@ -1,44 +1,42 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { PrismaService } from "../../prisma/prisma.service";
 import type { Citation } from "@prisma/client";
+import { PrismaService } from "../../prisma/prisma.service.js";
+import { CitationsDetector } from "./citations.detector.js";
 
 /**
- * MVP citations service.
- *
- * Phase 3 (P3-001) replaces this with the full 10-stage pipeline
- * (Discovery → Normalization → Matching → Extraction → Classification →
- * Scoring → Resolution → Quoting → Recording → Receipt).
- *
- * This skeleton simulates a citation by attaching it to a Source
- * with a 1.0 match score so the rest of the MVP can be demoed.
+ * Citations service — orchestration over the detector + reads.
  */
 @Injectable()
 export class CitationsService {
   private readonly logger = new Logger(CitationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly detector: CitationsDetector,
+  ) {}
 
-  async simulate(input: { sourceId: string; snippet: string; responseId: string }): Promise<Citation> {
-    const source = await this.prisma.source.findUniqueOrThrow({ where: { id: input.sourceId } });
-
-    return this.prisma.citation.create({
-      data: {
-        sourceId: source.id,
-        responseId: input.responseId,
-        snippet: input.snippet,
-        kind: "DIRECT",
-        matchScore: "1.0000",
-        confidence: "1.00",
-        contributionFraction: "1.0000",
-        payoutAmountUsdc: "1000", // $0.001
-      },
-    });
+  detect(input: { responseId: string; responseText: string }) {
+    return this.detector.detect(input);
   }
 
   async listByCreator(creatorId: string): Promise<Citation[]> {
     return this.prisma.citation.findMany({
       where: { source: { creatorId } },
       orderBy: { recordedAt: "desc" },
+      include: { source: { select: { title: true, url: true, domain: true } } },
     });
+  }
+
+  async listByResponseId(responseId: string): Promise<Citation[]> {
+    return this.prisma.citation.findMany({
+      where: { responseId },
+      orderBy: { recordedAt: "asc" },
+      include: { source: { select: { title: true, url: true, domain: true } } },
+    });
+  }
+
+  async findSourceUrl(id: string): Promise<string | null> {
+    const s = await this.prisma.source.findUnique({ where: { id }, select: { url: true } });
+    return s?.url ?? null;
   }
 }

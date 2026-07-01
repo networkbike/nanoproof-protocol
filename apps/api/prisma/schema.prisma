@@ -259,6 +259,7 @@ model Source {
 
   creator       Creator    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   verifications SourceVerification[]
+  fingerprints  Fingerprint[]
   citations     Citation[]
   payments      Payment[]
 
@@ -290,6 +291,26 @@ model SourceVerification {
   @@map("source_verifications")
 }
 
+// Phase 3 — Fingerprints used by the citation engine for snippet-hash matching.
+// Phase 0/2 had Sources registered only by URL/domain. The Engine now also
+// stores rolling content fingerprints (SHA-256 of normalized body slices) so
+// we can match citations that *quote* the source without a verbatim URL.
+model Fingerprint {
+  id        String   @id @default(cuid()) // fp_<ulid>
+  sourceId  String
+  algorithm String   // "SHA-256-NORM" for v1
+  hash      String   // the fingerprint hash itself (hex)
+  window    Int      // character offset window the fingerprint covers
+  body      String?  // optional: stored body slice for QA / fraud replay
+  observedAt DateTime @default(now())
+
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, algorithm, hash])
+  @@index([hash])
+  @@map("fingerprints")
+}
+
 // -----------------------------------------------------------------------------
 // Citation (Phase 3 implements the pipeline; MVP currently simulates)
 // -----------------------------------------------------------------------------
@@ -299,7 +320,10 @@ model Citation {
   sourceId              String
   responseId            String?
   snippet               String
+
+  // Phase 3 — what matched
   kind                  CitationKind @default(DIRECT)
+  matchKind             String       @default("URL")      // "URL" | "FINGERPRINT" | "QUOTE"
   matchScore            String       @default("1.0000")
   confidence            String       @default("1.00")
   contributionFraction  String       @default("1.0000")
@@ -315,7 +339,9 @@ model Citation {
   creators              Creator[]    @relation("CreatorCitations")
 
   @@index([sourceId])
+  @@index([responseId])
   @@index([recordedAt])
+  @@index([matchKind])
   @@map("citations")
 }
 

@@ -99,7 +99,7 @@ See [`docs/phase-2-creator-registry.md`](./docs/phase-2-creator-registry.md) for
 
 ---
 
-## Phase 3 — Citation Engine ⬜ Planned  · Lepton-tagged
+## Phase 3 — Citation Engine  🟡 In Progress (thin slice)  · Lepton-tagged
 
 **Goal:** Detect citations in any AI response and resolve them to a registered Source.
 
