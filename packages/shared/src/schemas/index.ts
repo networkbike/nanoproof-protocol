@@ -5,3 +5,4 @@ export * from "./source.js";
 export * from "./citation.js";
 export * from "./payment.js";
 export * from "./apikey.js";
+export * from "./analytics.js";

@@ -165,7 +165,8 @@ const setupPromise = (async () => {
     // Allow the test's pg.Pool to spin up a few clients in parallel;
     // and the Promise.all() in stats controller fires 4 queries
     // concurrently, so we need at least 4 (give it headroom).
-    maxConnections: 8,
+    // Analytics overview() fires ~11 queries in parallel, so 16 to be safe.
+    maxConnections: 16,
   });
   await server.start();
   globalThis.__nanoproof_pglite_socket = server;
