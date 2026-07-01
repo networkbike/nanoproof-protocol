@@ -14,10 +14,10 @@ export default function HomePage() {
         </p>
         <div className="flex justify-center gap-3">
           <Button asChild>
-            <Link href="/dashboard">Open the dashboard</Link>
+            <Link href="/research">Try the research demo</Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/simulate">Run a simulation</Link>
+            <Link href="/dashboard">Open the dashboard</Link>
           </Button>
         </div>
       </section>

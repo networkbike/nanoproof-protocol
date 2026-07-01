@@ -191,20 +191,25 @@ See [`docs/citation-engine.md`](./docs/citation-engine.md) for the canonical arc
 
 ---
 
-## Phase 5 — AI Research Agent ⬜ Planned  · Lepton-tagged
+## Phase 5 — AI Research Agent  🟡 In Progress (Lepton Demo MVP shipped)  · Lepton-tagged
 
 **Goal:** Ship the reference implementation of an agent that uses the protocol — so judges and integrators can see NanoProof working end-to-end.
 
 ### Deliverables
-- [ ] Reference research agent (Next.js app at `apps/web/research`)
-- [ ] Streaming chat UI with cited sources
-- [ ] Tool-call integration for structured citations
-- [ ] Live citation count + per-response cost display
-- [ ] Demo video script + ≤3-min recording for submission
+- [x] `@nanoproof/agent` package with full pipeline (core/research/attribution/settlement/prompts/types)
+- [x] Reference research web app at `apps/web/research` — 7 panels
+- [x] `/api/agent` server-side route that imports `@nanoproof/agent`
+- [x] Demo dataset (5 sources: SatLayer, Babylon, Arc, Creator Economy)
+- [x] `pnpm --filter @nanoproof/agent seed`
+- [x] `docs/demo-script.md` + `docs/deployment.md`
+- [x] GitHub milestone `lepton-demo-mvp` + 12 issues
+- [ ] Streaming chat UI with cited sources (LD-011 follow-up)
+- [ ] Live ArcScan receipt linking (LD-012 follow-up)
+- [ ] Demo video ≤3-min recording
 
 ### Acceptance
-- A user can ask a question, see a streaming answer with citations, and watch testnet USDC flow to creators in real time.
-- The demo video fits within the Lepton ≤3-min submission constraint.
+- A user can ask a question, see a templated answer with citations, attribution, and atomic USDC flowing through `POST /v1/payments/settle`.
+- The 5-min demo script is recorded and within the Lepton ≤3-min submission constraint after editing.
 
 ---
 

@@ -1,0 +1,36 @@
+{
+  "name": "@nanoproof/agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reference research agent that uses the NanoProof Protocol end-to-end.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "echo 'no lint yet'",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo",
+    "seed": "tsx src/data/seed.ts"
+  },
+  "dependencies": {
+    "@nanoproof/shared": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "tsx": "^4.19.0",
+    "vitest": "catalog:"
+  }
+}

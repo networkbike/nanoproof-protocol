@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase 5 — Lepton Demo MVP** (← the bulk of this commit)
+  - `@nanoproof/agent` package: `core/`, `research/`, `citations/`, `attribution/`, `settlement/`, `prompts/`, `types/`, `tests/`
+  - End-to-end orchestrator: `research(question, { apiBaseUrl, mode })` runs the full pipeline (Question → Research → Citation Match → Attribution → Payment → Settlement)
+  - Lightweight citation matcher: keyword overlap (tokenize, stopword filter, TF + cosine sim)
+  - Attribution model: 60/25/15 split, atomic USDC strings
+  - Settlement bridge: agent → `POST /v1/payments/settle` with responseId
+  - 5-source Lepton demo dataset: BTC restaking (SatLayer + Babylon), Arc L1, Creator Economy
+  - Web demo at `apps/web/src/app/research/page.tsx` — 7 panels (Hero, Query, AI Response, Sources Used, Attribution, Payment Allocation, Settlement, Payment Proof)
+  - Server-side `/api/agent` route that imports `@nanoproof/agent` and runs the pipeline
+  - `pnpm --filter @nanoproof/agent seed` registers all 5 creators + sources + wallets
+  - `docs/demo-script.md` — 5-min judge demo with narration + Q&A + recording checklist
+  - `docs/deployment.md` — Vercel + Railway + Neon with $0/mo free tier plan
+  - GitHub milestone `lepton-demo-mvp` + 12 issues under `.github/issues/lepton-demo/`
+  - 16/16 agent unit tests pass; 14/14 api unit tests pass; tsc clean across all 3 workspaces
+
+## [0.3.0] — Phase 3 Thin Slice
+
+### Added
 - **Phase 3 — Citation Engine thin slice** (← the bulk of this commit)
   - `Fingerprint` model + migration (`fingerprints` table with `(sourceId, algorithm, hash)` unique)
   - `Citation.matchKind` column (`URL` / `DOMAIN` / future `FINGERPRINT` / `QUOTE`)

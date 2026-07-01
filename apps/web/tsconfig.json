@@ -15,7 +15,11 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@nanoproof/agent": ["../../packages/agent/src/index.ts"],
+      "@nanoproof/agent/*": ["../../packages/agent/src/*"],
+      "@nanoproof/shared": ["../../packages/shared/src/index.ts"],
+      "@nanoproof/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
