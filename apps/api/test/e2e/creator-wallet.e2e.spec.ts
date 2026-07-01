@@ -27,7 +27,7 @@ beforeAll(async () => {
   // and crashed the first request. Auth is exercised by the unit tests,
   // not the e2e.
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(APP_GUARD)
+    .overrideGuard(APP_GUARD)
     .useValue({ canActivate: () => true })
     .compile();
   app = moduleRef.createNestApplication();
