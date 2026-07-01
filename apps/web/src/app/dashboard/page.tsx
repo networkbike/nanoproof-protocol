@@ -1,186 +1,223 @@
-import { headers } from "next/headers";
+import { Suspense } from "react";
+import { Activity, BarChart3, CircleDollarSign, Coins, FileText, Layers, TrendingUp, Users, Wallet, Zap } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { analytics } from "@/lib/analytics-client";
+import { formatCount, formatPct, formatUsdCompact } from "@/lib/utils";
+import { CitationTimelineChart } from "@/components/dashboard/citation-timeline-chart";
+import { PaymentStatusDonut } from "@/components/dashboard/payment-status-donut";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// =============================================================================
+// /dashboard — Overview
+//
+// The hero page. Shows the protocol KPI strip + two trend charts. Designed
+// for the Lepton demo: it answers "what is NanoProof?" at a glance.
+// =============================================================================
 
-interface Creator {
-  id: string;
-  username: string;
-  name: string;
-  reputationScore: number;
-}
+export const dynamic = "force-dynamic";
 
-interface Source {
-  id: string;
-  url: string;
-  title: string;
-  status: string;
-  citationCount: number;
-  earnedAtomic: string;
-}
-
-interface Citation {
-  id: string;
-  snippet: string;
-  kind: string;
-  payoutAmountUsdc: string;
-  recordedAt: string;
-}
-
-interface Payment {
-  id: string;
-  amountUsdc: string;
-  status: string;
-  arcScanUrl: string | null;
-  settledAt: string | null;
-}
-
-async function fetchJSON<T>(path: string): Promise<T | null> {
-  try {
-    const h = await headers();
-    const cookie = h.get("cookie") ?? "";
-    const res = await fetch(`${API_BASE}${path}`, {
-      cache: "no-store",
-      headers: { cookie },
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-export default async function DashboardPage() {
-  // MVP: read the seeded "demo" creator by username.
-  // Phase 4 swaps this for the auth'd creator from Clerk.
-  const creator = await fetchJSON<Creator>("/v1/creators/demo");
-
-  if (!creator) {
-    return (
-      <div className="rounded-lg border border-dashed bg-card p-12 text-center">
-        <h2 className="text-xl font-semibold">No creator profile yet</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Seed the demo creator with <code className="rounded bg-muted px-1.5 py-0.5">pnpm --filter @nanoproof/api db:seed</code>,
-          or hit <code className="rounded bg-muted px-1.5 py-0.5">POST /v1/creators</code>.
-        </p>
-      </div>
-    );
-  }
-
-  const [sources, citations, payments] = await Promise.all([
-    fetchJSON<Source[]>(`/v1/sources?creatorId=${creator.id}`),
-    fetchJSON<Citation[]>(`/v1/citations?creatorId=${creator.id}`),
-    fetchJSON<Payment[]>(`/v1/payments?creatorId=${creator.id}`),
+export default async function DashboardOverviewPage() {
+  // Fetch in parallel — each endpoint is small (10-50ms on a hot server).
+  const [overview, citationTs, payments, topSources] = await Promise.all([
+    analytics.overview(),
+    analytics.citationTimeline("30d"),
+    analytics.payments({ limit: 0 }), // for status breakdown only
+    analytics.topSources(5),
   ]);
 
-  const totalEarned = (payments ?? [])
-    .filter((p) => p.status === "SETTLED")
-    .reduce((sum, p) => sum + BigInt(p.amountUsdc), 0n);
+  const settledShare = payments.totalsByStatus.SETTLED / Math.max(overview.payments, 1);
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Welcome, {creator.name}</h1>
-          <p className="text-sm text-muted-foreground">@{creator.username} · reputation {creator.reputationScore}</p>
-        </div>
-        <a
-          href="/simulate"
-          className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90"
-        >
-          Run simulation
-        </a>
+    <div className="space-y-6">
+      {/* Hero */}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Protocol overview</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          The NanoProof creator economy at a glance — citations, attribution, payments, settlement.
+        </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Stat label="Sources" value={String(sources?.length ?? 0)} />
-        <Stat label="Citations" value={String(citations?.length ?? 0)} />
-        <Stat label="Total earned" value={`${(Number(totalEarned) / 1_000_000).toFixed(4)} USDC`} />
+      {/* KPI strip */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Kpi
+          icon={<Users className="h-4 w-4" />}
+          label="Creators"
+          value={formatCount(overview.creators)}
+          delta={`${overview.recent.citations7d} citations / 7d`}
+          href="/dashboard/creators"
+        />
+        <Kpi
+          icon={<FileText className="h-4 w-4" />}
+          label="Citations"
+          value={formatCount(overview.citations)}
+          delta={`${formatCount(overview.recent.citations24h)} in 24h`}
+          href="/dashboard/citations"
+        />
+        <Kpi
+          icon={<Coins className="h-4 w-4" />}
+          label="Payments"
+          value={formatCount(overview.payments)}
+          delta={`${formatCount(overview.settledPayments)} settled`}
+          href="/dashboard/payments"
+        />
+        <Kpi
+          icon={<CircleDollarSign className="h-4 w-4" />}
+          label="USDC settled"
+          value={formatUsdCompact(overview.totalUsdcDistributed)}
+          delta={`${formatUsdCompact(overview.pendingUsdc)} pending`}
+          href="/dashboard/payments"
+        />
       </div>
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Sources</h2>
-        <div className="overflow-hidden rounded-lg border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted text-left">
-              <tr>
-                <th className="p-3">Title</th>
-                <th className="p-3">URL</th>
-                <th className="p-3">Status</th>
-                <th className="p-3 text-right">Citations</th>
-                <th className="p-3 text-right">Earned</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(sources ?? []).map((s) => (
-                <tr key={s.id} className="border-t">
-                  <td className="p-3">{s.title}</td>
-                  <td className="p-3 text-muted-foreground">{s.url}</td>
-                  <td className="p-3">{s.status}</td>
-                  <td className="p-3 text-right">{s.citationCount}</td>
-                  <td className="p-3 text-right">{(Number(s.earnedAtomic) / 1_000_000).toFixed(4)} USDC</td>
-                </tr>
-              ))}
-              {(sources ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                    No sources registered yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      {/* Story strip: the NanoProof flow Creator → Citation → Attribution → Payment → Settlement */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Zap className="h-4 w-4 text-amber-500" />
+            How NanoProof works
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 text-center sm:grid-cols-5">
+            <FlowStep icon={<Users className="h-5 w-5" />} title="Creator" subtitle="Registers source" />
+            <Arrow />
+            <FlowStep icon={<FileText className="h-5 w-5" />} title="Citation" subtitle="AI cites the source" />
+            <Arrow />
+            <FlowStep icon={<Layers className="h-5 w-5" />} title="Attribution" subtitle="Matched & scored" />
+            <Arrow />
+            <FlowStep icon={<Wallet className="h-5 w-5" />} title="Payment" subtitle="USDC minted to creator" />
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="success">{formatPct(settledShare)} settled</Badge>
+            <span>·</span>
+            <span>Last updated {new Date(overview.generatedAt).toLocaleString()}</span>
+          </div>
+        </CardContent>
+      </Card>
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Recent payments</h2>
-        <div className="overflow-hidden rounded-lg border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted text-left">
-              <tr>
-                <th className="p-3">Amount</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Settled</th>
-                <th className="p-3">Receipt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(payments ?? []).map((p) => (
-                <tr key={p.id} className="border-t">
-                  <td className="p-3">{(Number(p.amountUsdc) / 1_000_000).toFixed(4)} USDC</td>
-                  <td className="p-3">{p.status}</td>
-                  <td className="p-3 text-muted-foreground">{p.settledAt ?? "—"}</td>
-                  <td className="p-3">
-                    {p.arcScanUrl ? (
-                      <a href={p.arcScanUrl} target="_blank" rel="noreferrer" className="underline">
-                        View on ArcScan
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                </tr>
+      {/* Charts row */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Activity className="h-4 w-4 text-indigo-500" />
+              Citations over 30 days
+            </CardTitle>
+            <CardDescription>{formatCount(citationTs.total)} citations total</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Suspense fallback={<div className="h-64 animate-pulse rounded bg-muted" />}>
+              <CitationTimelineChart data={citationTs.buckets} />
+            </Suspense>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
+              Payment status
+            </CardTitle>
+            <CardDescription>Across all {formatCount(overview.payments)} payments</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PaymentStatusDonut counts={payments.totalsByStatus} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top sources */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BarChart3 className="h-4 w-4 text-purple-500" />
+            Top cited sources
+          </CardTitle>
+          <CardDescription>Across all creators and networks</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {topSources.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No citations yet. Load the demo dataset to populate the dashboard.
+            </p>
+          ) : (
+            <ol className="divide-y">
+              {topSources.map((s, i) => (
+                <li key={s.sourceId} className="flex items-center gap-4 py-3">
+                  <span className="w-6 text-right text-sm font-mono text-muted-foreground">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {s.title ?? s.url}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      <a className="hover:underline" href={`/dashboard/creator/${s.creatorId}`}>
+                        @{s.creatorUsername}
+                      </a>{" "}
+                      · {new URL(s.url).hostname}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">{formatCount(s.citationCount)} cites</Badge>
+                  <span className="w-20 text-right text-sm font-medium">
+                    ${formatUsdCompact(s.earnedAtomic)}
+                  </span>
+                </li>
               ))}
-              {(payments ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={4} className="p-6 text-center text-muted-foreground">
-                    No payments yet. Run a simulation to see one.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </ol>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+// -----------------------------------------------------------------------------
+// Sub-components
+// -----------------------------------------------------------------------------
+
+function Kpi({
+  icon,
+  label,
+  value,
+  delta,
+  href,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  delta: string;
+  href: string;
+}) {
   return (
-    <div className="rounded-lg border bg-card p-6 text-card-foreground">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    <a
+      href={href}
+      className="group block rounded-lg border bg-card p-4 transition-colors hover:border-indigo-200 hover:bg-indigo-50/30 dark:hover:border-indigo-800 dark:hover:bg-indigo-950/20"
+    >
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">{icon} {label}</span>
+      </div>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{delta}</p>
+    </a>
+  );
+}
+
+function FlowStep({ icon, title, subtitle }: { icon: React.ReactNode; title: string; subtitle: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow">
+        {icon}
+      </div>
+      <div className="text-sm font-medium">{title}</div>
+      <div className="text-xs text-muted-foreground">{subtitle}</div>
+    </div>
+  );
+}
+
+function Arrow() {
+  return (
+    <div className="hidden text-muted-foreground sm:block">
+      <svg width="24" height="12" viewBox="0 0 24 12" fill="none">
+        <path d="M0 6h20m0 0l-4-4m4 4l-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
     </div>
   );
 }

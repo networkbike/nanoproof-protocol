@@ -49,11 +49,16 @@ exact Termux commands to run the MVP end-to-end.
 |---|---|---|
 | `prisma migrate deploy` against a real Postgres | no Docker, no native Postgres in sandbox | Run on a real machine with Docker, Neon, or a local Postgres |
 | `pnpm dev` running api + web + DB together | needs the same as above | Same |
-| `apps/api/test/e2e/creator-wallet.e2e.spec.ts` | needs a live Postgres | Same |
-| `apps/api/prisma/seed.ts` (the api seed, not the agent seed) | needs a live Postgres | Same |
 | The actual `/v1/citations/detect` HTTP round-trip | needs a live API + DB | Same |
 
-These are the **only** things the audit could not exercise. Everything else is verified.
+**UPDATE (Phase 6):** The e2e suite (`apps/api/test/e2e/`) now runs entirely
+against `@electric-sql/pglite` exposed over TCP via `@electric-sql/pglite-socket`
+(no apt Postgres required). Confirmed 21/21 e2e tests passing on
+Termux/proot-distro in commit `c629708`. The pglite data dir is
+`/tmp/nanoproof-pglite-<pid>.data` and is cleaned up by the OS.
+
+Production still requires real Postgres (Neon, Railway). The pglite
+harness is dev-only.
 
 ## Bugs found and fixed in this audit
 
