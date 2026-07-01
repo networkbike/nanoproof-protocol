@@ -9,11 +9,17 @@
 //
 // Append-only tables (Citations, Payments) are enforced at the service
 // layer; we rely on convention + Postgres triggers (see migration SQL).
+//
+// IMPORTANT: `previewFeatures = ["driverAdapters"]` is required so the
+// PrismaClient can use the `pg` driver adapter (apps/api/src/prisma/
+// prisma.service.ts) instead of the native query engine. The native
+// engine (.so.node) is prebuilt for specific CPU+libc combinations and
+// fails to dlopen on platforms that don't match (Termux, musl-based
+// containers, etc.). The pg adapter is pure JS and works everywhere.
 // =============================================================================
 
 generator client {
   provider        = "prisma-client-js"
-  binaryTargets   = ["native"]
   previewFeatures = ["driverAdapters"]
 }
 

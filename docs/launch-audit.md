@@ -275,6 +275,40 @@ This is the only test that needs a live DB. It exercises Creator + Wallet
 | `PrismaClientInitializationError: Can't reach database server` | Postgres isn't running, or `DATABASE_URL` is wrong. Try `pg_isready` or `docker ps`. |
 | `Error: listen EADDRINUSE: 0.0.0.0:4000` | Another process is on 4000. `lsof -i:4000` then kill it. |
 
+
+
+## Known limitation: Prisma 5.22 + Termux native engine
+
+Prisma 5.22 ships a prebuilt query engine binary (`libquery_engine-*.so.node`)
+targeted at specific CPU+libc combos. On Termux (Android, Bionic libc) the
+`dlopen` fails with `EM_X86_64` vs `EM_AARCH64` or similar — there is no
+prebuilt engine for the Termux runtime.
+
+**Workaround:** use `proot-distro` to run the e2e + dev inside an Ubuntu
+userland. The `pg` driver adapter (`@prisma/adapter-pg`) does the
+in-process work, but Prisma 5.22 still loads the engine binary for the
+client constructor — so we can't fully escape it on raw Termux.
+
+```bash
+# Install proot + Ubuntu (one time)
+pkg install proot-distro
+proot-distro install ubuntu
+
+# Enter Ubuntu
+proot-distro login ubuntu
+
+# Inside Ubuntu: install Node + pnpm + Postgres
+apt update && apt install -y nodejs npm postgresql
+npm i -g pnpm@9
+corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+# Then run the full runbook above
+```
+
+The Ubuntu userland has glibc, so Prisma's debian-openssl engine loads
+cleanly. The `pg` adapter is a no-op there (Prisma uses the engine) but
+that's fine — same wire format, same result.
+
 ## Verdict
 
 **Working MVP:** Mostly yes. Code compiles, builds work, all unit tests
