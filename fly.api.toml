@@ -1,0 +1,45 @@
+# Fly.io config for the NanoProof API service
+# Deploy with: cd /path/to/repo && fly deploy --config fly.api.toml --dockerfile apps/api/Dockerfile
+
+app = "nanoproof-api"
+primary_region = "iad"  # closest free region to US East; change to sin/fra if you prefer
+
+[build]
+  dockerfile = "apps/api/Dockerfile"
+  build-target = "runtime"
+
+[deploy]
+  release_command = "node -e \"console.log('release OK')\""
+
+[env]
+  NODE_ENV = "production"
+  PORT = "4000"
+  LOG_LEVEL = "info"
+  NANOPROOF_DEMO_MODE = "true"
+  PAYMENTS_ENABLED = "true"
+  CITATION_ENGINE_ENABLED = "true"
+  ARC_RPC_URL = "https://rpc.testnet.arc.network"
+  ARC_CHAIN_ID = "arc-testnet"
+  ARCSCAN_URL = "https://testnet.arcscan.app"
+  RATE_LIMIT_PER_MINUTE = "600"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0  # spin down to save free tier hours
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpus = 1
+  cpu_kind = "shared"
