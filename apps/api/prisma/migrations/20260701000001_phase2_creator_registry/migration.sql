@@ -10,6 +10,30 @@
 -- Adds append-only triggers on Citation, Payment, Receipt (Phase 4).
 -- =============================================================================
 
+-- Creators ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS "creators" (
+  "id"              TEXT PRIMARY KEY,
+  "name"            TEXT NOT NULL,
+  "username"        TEXT NOT NULL UNIQUE,
+  "email"           TEXT NOT NULL UNIQUE,
+  "bio"             TEXT,
+  "avatarUrl"       TEXT,
+  "reputationScore" INTEGER NOT NULL DEFAULT 0,
+  "isActive"        BOOLEAN NOT NULL DEFAULT TRUE,
+  "twitterHandle"   TEXT,
+  "githubHandle"    TEXT,
+  "websiteUrl"      TEXT,
+  "settings"        JSONB NOT NULL DEFAULT '{}'::JSONB,
+  "createdAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "deletedAt"       TIMESTAMP(3),
+  "purgedAt"        TIMESTAMP(3)
+);
+CREATE INDEX IF NOT EXISTS "creators_username_idx" ON "creators"("username");
+CREATE INDEX IF NOT EXISTS "creators_email_idx" ON "creators"("email");
+CREATE INDEX IF NOT EXISTS "creators_reputationScore_idx" ON "creators"("reputationScore");
+CREATE INDEX IF NOT EXISTS "creators_deletedAt_idx" ON "creators"("deletedAt");
+
 -- Organizations ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS "organizations" (
   "id"           TEXT PRIMARY KEY,

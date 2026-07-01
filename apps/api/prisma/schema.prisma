@@ -96,32 +96,32 @@ enum OrganizationMemberRole {
 // -----------------------------------------------------------------------------
 
 model Creator {
-  id              String   @id @default(cuid()) // cr_<ulid>
+  id              String  @id @default(cuid()) // cr_<ulid>
   name            String
-  username        String   @unique
-  email           String   @unique
+  username        String  @unique
+  email           String  @unique
   bio             String?
   avatarUrl       String?
-  reputationScore Int      @default(0)
-  isActive        Boolean  @default(true)
+  reputationScore Int     @default(0)
+  isActive        Boolean @default(true)
 
-  twitterHandle   String?
-  githubHandle    String?
-  websiteUrl      String?
-  settings        Json     @default("{}")
+  twitterHandle String?
+  githubHandle  String?
+  websiteUrl    String?
+  settings      Json    @default("{}")
 
   // GDPR (P2-020): soft-delete purged after 30d
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
-  purgedAt        DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  purgedAt  DateTime?
 
   // Relations
   organizationMemberships OrganizationMembership[]
   wallets                 Wallet[]
   sources                 Source[]
-  citations               Citation[]              @relation("CreatorCitations")
-  payments                Payment[]               @relation("CreatorPayments")
+  citations               Citation[]               @relation("CreatorCitations")
+  payments                Payment[]                @relation("CreatorPayments")
   apiKeys                 ApiKey[]
 
   @@index([username])
@@ -136,17 +136,17 @@ model Creator {
 // -----------------------------------------------------------------------------
 
 model Organization {
-  id        String   @id @default(cuid()) // org_<ulid>
-  name      String
-  slug      String   @unique
-  bio       String?
-  avatarUrl String?
-  websiteUrl String?
+  id           String  @id @default(cuid()) // org_<ulid>
+  name         String
+  slug         String  @unique
+  bio          String?
+  avatarUrl    String?
+  websiteUrl   String?
   billingEmail String?
-  isActive  Boolean  @default(true)
+  isActive     Boolean @default(true)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   memberships OrganizationMembership[]
@@ -166,8 +166,8 @@ model OrganizationMembership {
   acceptedAt     DateTime?
   revokedAt      DateTime?
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  creator        Creator      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      Creator      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, creatorId])
   @@index([creatorId])
@@ -179,22 +179,22 @@ model OrganizationMembership {
 // -----------------------------------------------------------------------------
 
 model Wallet {
-  id           String   @id @default(cuid()) // wl_<ulid>
-  creatorId    String
-  address      String
-  network      WalletNetwork
-  label        String?
-  isPrimary    Boolean  @default(false)
+  id        String        @id @default(cuid()) // wl_<ulid>
+  creatorId String
+  address   String
+  network   WalletNetwork
+  label     String?
+  isPrimary Boolean       @default(false)
 
   // Verification (EIP-191 challenge/response)
   verificationStatus VerificationStatus @default(UNVERIFIED)
   verifiedAt         DateTime?
   verificationMethod String? // "EIP-191"
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  creator            Creator              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator                Creator                 @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   verificationChallenges VerificationChallenge[]
 
   // One Creator can only have ONE primary Wallet per network.
@@ -206,21 +206,21 @@ model Wallet {
 }
 
 model VerificationChallenge {
-  id         String   @id @default(cuid()) // vch_<ulid>
-  walletId   String
-  challenge  String   @unique // random nonce stored plaintext, signed by wallet
-  message    String   // human-readable EIP-191 message
-  purpose    String   // "WALLET_OWNERSHIP" (Phase 2) | "SOURCE_OWNERSHIP" (P2-012)
-  status     VerificationStatus @default(PENDING)
+  id        String             @id @default(cuid()) // vch_<ulid>
+  walletId  String
+  challenge String             @unique // random nonce stored plaintext, signed by wallet
+  message   String // human-readable EIP-191 message
+  purpose   String // "WALLET_OWNERSHIP" (Phase 2) | "SOURCE_OWNERSHIP" (P2-012)
+  status    VerificationStatus @default(PENDING)
 
   // Audit (GDPR-irrelevant; retained for forensics)
   ipAddress  String?
   userAgent  String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
   expiresAt  DateTime
   consumedAt DateTime?
 
-  wallet     Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   @@index([walletId, status])
   @@index([expiresAt])
@@ -232,32 +232,32 @@ model VerificationChallenge {
 // -----------------------------------------------------------------------------
 
 model Source {
-  id            String   @id @default(cuid()) // src_<ulid>
-  creatorId     String
-  title         String
-  url           String
-  domain        String
-  description   String?
+  id          String  @id @default(cuid()) // src_<ulid>
+  creatorId   String
+  title       String
+  url         String
+  domain      String
+  description String?
 
   // Pricing (atomic USDC; default $0.001 per citation)
-  citationPrice String   @default("1000")
-  minPayout     String   @default("100")
+  citationPrice String  @default("1000")
+  minPayout     String  @default("100")
   periodCap     String?
-  license       String   @default("all-rights-reserved")
+  license       String  @default("all-rights-reserved")
 
   // Verification (real DNS/HTML/file in Phase 2 P2-012)
-  status        SourceStatus @default(PENDING_VERIFICATION)
-  verifiedAt    DateTime?
+  status     SourceStatus @default(PENDING_VERIFICATION)
+  verifiedAt DateTime?
 
   // Aggregates (denormalized, refreshed by a worker in Phase 6+)
-  citationCount Int      @default(0)
-  earnedAtomic  String   @default("0")
+  citationCount Int    @default(0)
+  earnedAtomic  String @default("0")
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  archivedAt    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
 
-  creator       Creator    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator       Creator              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   verifications SourceVerification[]
   fingerprints  Fingerprint[]
   citations     Citation[]
@@ -271,20 +271,20 @@ model Source {
 }
 
 model SourceVerification {
-  id        String                   @id @default(cuid()) // ver_<ulid>
-  sourceId  String
-  method    SourceVerificationMethod
-  status    VerificationStatus       @default(PENDING)
-  token     String                   // DNS TXT or HTML meta tag value
-  expected  String                   // what we expected the creator to publish
-  observed  String?                  // what we actually saw
-  attempts  Int                      @default(0)
-  lastTriedAt DateTime?
-  succeededAt DateTime?
+  id            String                   @id @default(cuid()) // ver_<ulid>
+  sourceId      String
+  method        SourceVerificationMethod
+  status        VerificationStatus       @default(PENDING)
+  token         String // DNS TXT or HTML meta tag value
+  expected      String // what we expected the creator to publish
+  observed      String? // what we actually saw
+  attempts      Int                      @default(0)
+  lastTriedAt   DateTime?
+  succeededAt   DateTime?
   failureReason String?
-  createdAt DateTime @default(now())
+  createdAt     DateTime                 @default(now())
 
-  source    Source     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@index([sourceId, method])
   @@index([status])
@@ -296,15 +296,15 @@ model SourceVerification {
 // stores rolling content fingerprints (SHA-256 of normalized body slices) so
 // we can match citations that *quote* the source without a verbatim URL.
 model Fingerprint {
-  id        String   @id @default(cuid()) // fp_<ulid>
-  sourceId  String
-  algorithm String   // "SHA-256-NORM" for v1
-  hash      String   // the fingerprint hash itself (hex)
-  window    Int      // character offset window the fingerprint covers
-  body      String?  // optional: stored body slice for QA / fraud replay
+  id         String   @id @default(cuid()) // fp_<ulid>
+  sourceId   String
+  algorithm  String // "SHA-256-NORM" for v1
+  hash       String // the fingerprint hash itself (hex)
+  window     Int // character offset window the fingerprint covers
+  body       String? // optional: stored body slice for QA / fraud replay
   observedAt DateTime @default(now())
 
-  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@unique([sourceId, algorithm, hash])
   @@index([hash])
@@ -316,27 +316,27 @@ model Fingerprint {
 // -----------------------------------------------------------------------------
 
 model Citation {
-  id                    String       @id @default(cuid()) // cit_<ulid>
-  sourceId              String
-  responseId            String?
-  snippet               String
+  id         String  @id @default(cuid()) // cit_<ulid>
+  sourceId   String
+  responseId String?
+  snippet    String
 
   // Phase 3 — what matched
-  kind                  CitationKind @default(DIRECT)
-  matchKind             String       @default("URL")      // "URL" | "FINGERPRINT" | "QUOTE"
-  matchScore            String       @default("1.0000")
-  confidence            String       @default("1.00")
-  contributionFraction  String       @default("1.0000")
-  payoutAmountUsdc      String       @default("1000")
-  status                String       @default("PENDING")
-  recordedAt            DateTime     @default(now())
+  kind                 CitationKind @default(DIRECT)
+  matchKind            String       @default("URL") // "URL" | "FINGERPRINT" | "QUOTE"
+  matchScore           String       @default("1.0000")
+  confidence           String       @default("1.00")
+  contributionFraction String       @default("1.0000")
+  payoutAmountUsdc     String       @default("1000")
+  status               String       @default("PENDING")
+  recordedAt           DateTime     @default(now())
 
   // Append-only hash chain (Phase 3 P3-008)
-  prevHash              String?
-  hash                  String?
+  prevHash String?
+  hash     String?
 
-  source                Source       @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  creators              Creator[]    @relation("CreatorCitations")
+  source   Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  creators Creator[] @relation("CreatorCitations")
 
   @@index([sourceId])
   @@index([responseId])
@@ -350,27 +350,27 @@ model Citation {
 // -----------------------------------------------------------------------------
 
 model Payment {
-  id          String        @id @default(cuid()) // pay_<ulid>
-  creatorId   String
-  sourceId    String?
-  amountUsdc  String
-  currency    String        @default("USDC")
-  network     String        @default("ARC_TESTNET")
-  status      PaymentStatus @default(SETTLED)
+  id         String        @id @default(cuid()) // pay_<ulid>
+  creatorId  String
+  sourceId   String?
+  amountUsdc String
+  currency   String        @default("USDC")
+  network    String        @default("ARC_TESTNET")
+  status     PaymentStatus @default(SETTLED)
 
   txHash      String?
   arcScanUrl  String?
   blockNumber BigInt?
   settledAt   DateTime?
 
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  prevHash    String?
-  hash        String?
+  prevHash String?
+  hash     String?
 
-  creator     Creator  @relation("CreatorPayments", fields: [creatorId], references: [id], onDelete: Cascade)
-  source      Source?  @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  creator Creator @relation("CreatorPayments", fields: [creatorId], references: [id], onDelete: Cascade)
+  source  Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
 
   @@index([creatorId, settledAt])
   @@index([status])
@@ -382,29 +382,29 @@ model Payment {
 // -----------------------------------------------------------------------------
 
 model ApiKey {
-  id          String         @id @default(cuid()) // key_<ulid>
+  id             String        @id @default(cuid()) // key_<ulid>
   organizationId String?
-  creatorId   String?
-  name        String
-  prefix      String         @unique // "np_live_<8>" — public, used in lists
-  hash        String         // bcrypt of "np_live_<prefix>.<secret>"
-  last4       String         // last 4 chars of secret, for human ID
-  scopes      ApiKeyScope[]  @default([READ_CITATIONS])
-  isActive    Boolean        @default(true)
+  creatorId      String?
+  name           String
+  prefix         String        @unique // "np_live_<8>" — public, used in lists
+  hash           String // bcrypt of "np_live_<prefix>.<secret>"
+  last4          String // last 4 chars of secret, for human ID
+  scopes         ApiKeyScope[] @default([READ_CITATIONS])
+  isActive       Boolean       @default(true)
 
-  expiresAt   DateTime?
-  lastUsedAt  DateTime?
-  lastUsedIp  String?
-  callCount   BigInt         @default(0)
-  rateLimitPerMinute Int    @default(600)
-  rateLimitBurst      Int    @default(100)
+  expiresAt          DateTime?
+  lastUsedAt         DateTime?
+  lastUsedIp         String?
+  callCount          BigInt    @default(0)
+  rateLimitPerMinute Int       @default(600)
+  rateLimitBurst     Int       @default(100)
 
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  revokedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  revokedAt     DateTime?
   revokedReason String?
 
-  creator     Creator?       @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator      Creator?      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([creatorId, isActive])
@@ -418,20 +418,20 @@ model ApiKey {
 
 model IdempotencyKey {
   // PK is the client-supplied Idempotency-Key header (UUID typically).
-  key          String   @id
-  creatorId    String?
+  key            String  @id
+  creatorId      String?
   organizationId String?
 
-  method       String   // POST /v1/...
-  path         String
-  requestHash  String   // sha256 of the request body
+  method         String // POST /v1/...
+  path           String
+  requestHash    String // sha256 of the request body
   responseStatus Int?
-  responseBody Json?
+  responseBody   Json?
 
-  state        String   // "IN_FLIGHT" | "COMPLETED" | "FAILED"
-  createdAt    DateTime @default(now())
-  expiresAt    DateTime // 24h after creation
-  completedAt  DateTime?
+  state       String // "IN_FLIGHT" | "COMPLETED" | "FAILED"
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime // 24h after creation
+  completedAt DateTime?
 
   @@index([expiresAt])
   @@map("idempotency_keys")

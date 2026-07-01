@@ -23,7 +23,10 @@
     "./constants": {
       "types": "./dist/constants/index.d.ts",
       "import": "./dist/constants/index.js"
-    }
+    },
+    "./schemas/*": "./dist/schemas/*",
+    "./errors/*": "./dist/errors/*",
+    "./constants/*": "./dist/constants/*"
   },
   "files": ["dist", "README.md"],
   "scripts": {

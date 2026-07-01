@@ -1,7 +1,7 @@
 import "reflect-metadata";
 
 import { NestFactory } from "@nestjs/core";
-import { Logger, ValidationPipe } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import helmet from "helmet";
 import { AppModule } from "./app.module.js";
@@ -18,15 +18,10 @@ async function bootstrap() {
   app.use(helmet());
   app.enableCors({ origin: origins, credentials: true });
 
-  // Strict DTO validation — strips unknown fields, transforms primitives.
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: false },
-    }),
-  );
+  // Per-endpoint validation via ZodValidationPipe (wraps @nestjs/common
+  // ValidationPipe with a Zod schema). We intentionally do NOT mount a
+  // global ValidationPipe here — that would require `class-validator` +
+  // `class-transformer`, and we validate everything with Zod instead.
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // Swagger — driven by controller decorators. Spec also exported at /openapi.json.
