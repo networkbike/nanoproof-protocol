@@ -2,12 +2,18 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Test } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import request from "supertest";
 import { AppModule } from "../../src/app.module";
 import { HttpExceptionFilter } from "../../src/common/filters/http-exception.filter";
 
-const prisma = new PrismaClient();
+// Use the same pg adapter as the api so the engine binary isn't required.
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL is not set for the e2e test");
+const pool = new Pool({ connectionString });
+const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
 let app: INestApplication;
 let server: ReturnType<INestApplication["getHttpServer"]>;
@@ -26,6 +32,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await app?.close();
   await prisma.$disconnect();
+  await pool.end();
 });
 
 describe("Phase 2 e2e — Creator + Wallet + Verification", () => {
