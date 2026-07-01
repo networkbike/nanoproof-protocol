@@ -1,35 +1,48 @@
 # =============================================================================
 # NanoProof Protocol — Render.com Blueprint
 #
-# Deploy with: `render blueprint launch` (or via the Render Dashboard →
-# New → Blueprint → point at this file).
+# Deploy with: Render Dashboard → New → Blueprint → point at this file.
+# Schema: https://render.com/schema/render.yaml.json
 #
 # Creates:
-#   - nanoproof-db    : Postgres 16 (free tier, 256 MB, 1 GB storage)
+#   - nanoproof-db    : Postgres 16 (free tier, 256 MB, 1 GB storage, 90-day)
 #   - nanoproof-api   : NestJS API (Web Service, Node 22)
 #   - nanoproof-web   : Next.js 15 frontend (Web Service)
 #
 # All three deploy from the same GitHub repo on push to `main`.
+#
+# NOTES:
+#   - Postgres is declared under top-level `databases:` (NOT services:),
+#     per Render's Blueprint schema. Putting it under `services:` with
+#     `type: pserv` is rejected with "invalid runtime".
+#   - `runtime: node` is a native-language runtime; valid values are:
+#     node, python, elixir, go, ruby, rust, docker, image, static.
+#   - `startCommand` is REQUIRED for non-Docker services.
+#   - `autoDeploy` (boolean) was renamed to `autoDeployTrigger` (one of
+#     `commit` | `checksPass` | `off`) — using `commit` here.
 # =============================================================================
 
-services:
+databases:
   # --------------------------------------------------------------------------
-  # Postgres
+  # Postgres 16 (managed)
   # --------------------------------------------------------------------------
-  - type: pserv
-    name: nanoproof-db
+  - name: nanoproof-db
     plan: free                       # 256 MB RAM, 1 GB storage, 90-day expiry
     region: oregon
-    # Render injects DATABASE_URL into the api service automatically.
-    # We do NOT need env vars here; the database is created empty.
+    databaseName: nanoproof
+    user: nanoproof
+    postgresMajorVersion: '16'
+    # Render injects DATABASE_URL into the api service automatically
+    # via fromDatabase below. No env vars needed here.
 
+services:
   # --------------------------------------------------------------------------
   # API (NestJS)
   # --------------------------------------------------------------------------
   - type: web
     name: nanoproof-api
-    plan: free                       # spins down after 15 min idle (fine for demos)
     runtime: node
+    plan: free                       # spins down after 15 min idle (fine for demos)
     region: oregon
     rootDir: apps/api                # Render's build runs from this subdir
     buildCommand: |
@@ -41,7 +54,7 @@ services:
       pnpm --filter @nanoproof/api exec prisma migrate deploy
     startCommand: node dist/apps/api/src/main.js
     healthCheckPath: /health
-    autoDeploy: true
+    autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
         value: production
@@ -53,16 +66,12 @@ services:
         fromDatabase:
           name: nanoproof-db
           property: connectionString
-      - key: DATABASE_SHADOW_URL
-        fromDatabase:
-          name: nanoproof-db
-          property: connectionString
       - key: DATABASE_POOL_SIZE
         value: 10
       - key: DATABASE_POOL_TIMEOUT_MS
         value: 5000
       - key: CORS_ORIGINS
-        sync: false                # set manually in dashboard after web deploy
+        sync: false                # set in dashboard after web deploy
       - key: NANOPROOF_DEMO_MODE
         value: "true"
       - key: PAYMENTS_ENABLED
@@ -83,8 +92,8 @@ services:
   # --------------------------------------------------------------------------
   - type: web
     name: nanoproof-web
-    plan: free
     runtime: node
+    plan: free
     region: oregon
     rootDir: apps/web
     buildCommand: |
@@ -94,7 +103,7 @@ services:
       pnpm --filter @nanoproof/agent build && \
       pnpm --filter @nanoproof/web build
     startCommand: pnpm start
-    autoDeploy: true
+    autoDeployTrigger: commit
     envVars:
       - key: NEXT_PUBLIC_API_URL
         sync: false                # set to https://nanoproof-api.onrender.com
