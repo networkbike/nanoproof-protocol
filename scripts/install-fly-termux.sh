@@ -63,10 +63,18 @@ echo "    installed at: $BIN_DIR/flyctl"
 echo ""
 echo "==> Step 7: add to PATH"
 export PATH="$BIN_DIR:$PATH"
-if ! grep -q 'fly/bin' ~/.bashrc 2>/dev/null; then
-  echo 'export PATH="$HOME/.fly/bin:$PATH"' >> ~/.bashrc
+# Add to both ~/.bashrc AND ~/.profile (Termux uses profile, not bashrc)
+for rc in ~/.bashrc ~/.profile; do
+  if [ -f "$rc" ] && ! grep -q 'fly/bin' "$rc" 2>/dev/null; then
+    echo 'export PATH="$HOME/.fly/bin:$PATH"' >> "$rc"
+    echo "    added to $rc"
+  fi
+done
+# Also create a symlink in /data/data/com.termux/files/usr/bin (always on PATH)
+if [ -d /data/data/com.termux/files/usr/bin ]; then
+  ln -sf "$BIN_DIR/flyctl" /data/data/com.termux/files/usr/bin/fly 2>/dev/null && \
+    echo "    symlinked: /data/data/com.termux/files/usr/bin/fly -> $BIN_DIR/flyctl"
 fi
-echo "    added to ~/.bashrc"
 
 echo ""
 echo "==> Step 8: verify"
