@@ -54,7 +54,8 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+# Do NOT set ENV PORT — let Railway's $PORT env var take effect.
+# If we hardcode PORT=3000, Railway's dynamic port assignment is ignored.
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 
@@ -79,5 +80,8 @@ WORKDIR /app/apps/web
 
 EXPOSE 3000
 
-# Direct argv. Bind to 0.0.0.0:3000.
-CMD ["node", "node_modules/next/dist/bin/next", "start", "-p", "3000", "-H", "0.0.0.0"]
+# Use Railway's $PORT env var (defaults to 3000 if not set).
+# Removing the hardcoded -p 3000 ensures we bind to whatever port
+# Railway expects, not 3000. If Railway assigns port 8080 and we
+# listen on 3000, Railway's edge returns 502.
+CMD ["sh", "-c", "exec node node_modules/next/dist/bin/next start -p ${PORT:-3000} -H 0.0.0.0"]
