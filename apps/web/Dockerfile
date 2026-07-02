@@ -60,5 +60,14 @@ WORKDIR /app/apps/web
 
 EXPOSE 3000
 
+# Print diagnostic at runtime to help debug Railway deploy issues.
+# These messages will appear in the Railway build log and prove the COPY
+# commands propagated the build artifacts.
+RUN echo "=== web runtime build complete ===" && \
+    echo "node_modules count: $(ls /app/node_modules 2>/dev/null | wc -l)" && \
+    echo "apps/web count: $(ls /app/apps/web 2>/dev/null | wc -l)" && \
+    echo ".next present: $(test -d /app/apps/web/.next && echo yes || echo no)" && \
+    echo ".next/BUILD_ID: $(cat /app/apps/web/.next/BUILD_ID 2>/dev/null)"
+
 # Direct argv CMD (no shell). Bind to 0.0.0.0 so Railway can route.
 CMD ["node", "node_modules/next/dist/bin/next", "start", "-p", "3000", "-H", "0.0.0.0"]
