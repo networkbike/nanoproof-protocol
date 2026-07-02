@@ -53,13 +53,16 @@ RUN pnpm --filter @nanoproof/api build
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
-# Prisma needs OpenSSL 3.x at runtime (Debian Bookworm ships 1.1.x by default).
-# Without this, Prisma falls back to openssl-1.1.x detection and crashes on
-# connect because the underlying libssl version is wrong for the native engine.
-# Installed once here, then apt cache is removed to keep the image small.
+# Prisma 5.22's native query engine ships with libquery_engine-debian-openssl-3.0.x.so.node
+# which dynamically links against libssl.so.3. node:22-bookworm-slim does NOT ship libssl3
+# by default, so we must install it explicitly. Without this, Prisma's _r.loadEngine() call
+# inside $connect() fails with errorCode: undefined and the api crashes at startup.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends \
+       openssl ca-certificates libssl3 libc6 libstdc++6 \
+  && ldconfig \
+  && rm -rf /var/lib/apt/lists/* \
+  && ldconfig -p | grep libssl
 
 ENV NODE_ENV=production
 ENV PORT=4000
