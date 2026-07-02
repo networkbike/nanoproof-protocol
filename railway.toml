@@ -1,0 +1,15 @@
+# =============================================================================
+# NanoProof Protocol — Railway top-level monorepo config
+# =============================================================================
+# This file is a hint to Railway CLI when running `railway up` from the repo
+# root. Railway will still detect the per-service Dockerfile in apps/api/ and
+# apps/web/. The actual production deploy uses:
+#   1. railway.json in each app directory (DOCKERFILE builder)
+#   2. Dockerfile in each app directory (multi-stage, Node 22, pnpm 9)
+#   3. Railway dashboard: 1 Postgres service + 2 web services
+#
+# See docs/DEPLOY_RAILWAY.md for the full step-by-step.
+# =============================================================================
+
+[build]
+builder = "DOCKERFILE"
