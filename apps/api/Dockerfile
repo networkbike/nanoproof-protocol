@@ -66,6 +66,10 @@ RUN apt-get update \
 
 ENV NODE_ENV=production
 ENV PORT=4000
+# Force Prisma to use the bundled JS engine (no native binary needed).
+# driverAdapters: true already makes pg the actual data path; this
+# just prevents Prisma from trying to dlopen the native engine.
+ENV PRISMA_CLIENT_ENGINE_TYPE=library
 
 # Copy everything needed at runtime
 COPY --from=build /repo/node_modules ./node_modules
