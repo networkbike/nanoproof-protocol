@@ -59,4 +59,4 @@ Both go through the API at `NEXT_PUBLIC_API_URL` (defaults to `http://localhost:
 - Server components by default. Add `"use client"` only when you need state / effects.
 - Tailwind 4 — tokens in `globals.css` via `@theme {}`.
 - Use `cn()` from `@/lib/utils` for conditional classes.
-- Use `formatUsd()` (in `@/lib/utils`) for any USDC display.
+- Use `formatUsd()` (in `@/lib/utils`) for any USDC display.# Web rebuild Thu Jul  2 19:51:47 UTC 2026
