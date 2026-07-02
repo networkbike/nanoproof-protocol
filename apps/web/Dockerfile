@@ -1,51 +1,41 @@
 # =============================================================================
-# NanoProof Web — ISOLATED production Dockerfile (Railway)
+# NanoProof Web — production Dockerfile (Railway) — ISOLATED BUILD
 # =============================================================================
-# This Dockerfile builds ONLY the web app, with the shared/agent packages
-# vendored as tarballs. It does NOT include the api, prisma, or the
-# @prisma/* packages — so the pnpm install won't trigger Prisma postinstall
-# scripts that require a Prisma schema.
+# Strategy: use the FULL workspace (with catalogs) but skip ALL postinstall
+# scripts. Then run only the web build. This avoids the lockfile mismatch
+# AND avoids any prisma postinstall failures.
 # =============================================================================
 
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-# Belt-and-suspenders: skip Prisma postinstall globally
+# Skip ALL postinstall scripts (no prisma, no esbuild, no nothing).
+# We'll only need compiled JS for next, no native deps.
 ENV PRISMA_SKIP_POSTINSTALL_GENERATE=1
-ENV PRISMA_GENERATE_SKIP_AUTO_CONFIG=1
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /repo
 
 # -----------------------------------------------------------------------------
-# Stage 1: install web-only deps with a filtered workspace
+# Stage 1: install (no postinstall scripts, with frozen lockfile)
 # -----------------------------------------------------------------------------
-# We temporarily replace pnpm-workspace.yaml with one that ONLY includes
-# apps/web and packages/{shared,agent}. This ensures pnpm doesn't try to
-# install the api, contracts, or any @prisma/* packages.
 FROM base AS deps
-# Copy everything first
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/ ./packages/
-COPY apps/web/ ./apps/web/
-# Save the original workspace file in case other tooling needs it
-RUN cp pnpm-workspace.yaml pnpm-workspace.yaml.bak
-# Create a web-only workspace file
-RUN cat > pnpm-workspace.yaml <<'EOF'
-packages:
-  - "apps/web"
-  - "packages/shared"
-  - "packages/agent"
-EOF
-# Now install — only web, shared, agent
-RUN pnpm install --frozen-lockfile
-# Restore the original workspace file (for the build stage)
-RUN mv pnpm-workspace.yaml.bak pnpm-workspace.yaml
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY contracts/ ./contracts/
+# Use --ignore-scripts to skip ALL postinstall scripts (Prisma, esbuild, etc.)
+# The lockfile IS compatible since we're using the full workspace file unchanged.
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # -----------------------------------------------------------------------------
-# Stage 2: build
+# Stage 2: build (web only)
 # -----------------------------------------------------------------------------
 FROM deps AS build
-# Source already copied. Just build.
+COPY packages/shared/ ./packages/shared/
+COPY packages/agent/ ./packages/agent/
+COPY apps/web/ ./apps/web/
+COPY tsconfig.base.json ./
 RUN pnpm --filter @nanoproof/shared build
 RUN pnpm --filter @nanoproof/agent build
 RUN pnpm --filter @nanoproof/web build
@@ -61,13 +51,13 @@ ENV PORT=3000
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 
-# Copy everything we need
+# Copy runtime artifacts
 COPY --from=build /repo/node_modules ./node_modules
 COPY --from=build /repo/apps/web ./apps/web
 COPY --from=build /repo/packages ./packages
 COPY --from=build /repo/pnpm-workspace.yaml ./
 COPY --from=build /repo/package.json ./
-# Explicitly copy .next in case the apps/web COPY missed it
+# Explicit .next copy
 COPY --from=build /repo/apps/web/.next ./apps/web/.next
 
 WORKDIR /app/apps/web
