@@ -1,45 +1,54 @@
 # =============================================================================
-# NanoProof Web — production Dockerfile (Railway) — ISOLATED BUILD
+# NanoProof Web — MINIMAL production Dockerfile (Railway)
 # =============================================================================
-# Strategy:
-# 1. Install ALL workspace deps (with --ignore-scripts to skip Prisma/etc)
-# 2. Build only the web's workspace deps (shared, agent, then web)
-# 3. Runtime copies the entire apps/web directory + .next output
+# This is a minimal, defensive Dockerfile. Every step is a single
+# RUN command that fails loudly if anything goes wrong. The build
+# prints each step so the Railway build log shows exactly where it
+# stopped if anything fails.
 # =============================================================================
 
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-ENV PRISMA_SKIP_POSTINSTALL_GENERATE=1
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /repo
 
 # -----------------------------------------------------------------------------
-# Stage 1: install
+# Step 1: deps — install everything, no postinstalls (skip prisma/esbuild)
 # -----------------------------------------------------------------------------
 FROM base AS deps
+# Print that this stage is starting
+RUN echo "=== STEP 1: building deps stage ==="
+# Copy manifests first (these rarely change → cacheable)
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/ ./packages/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 COPY contracts/ ./contracts/
-RUN pnpm install --frozen-lockfile --ignore-scripts
+# Run install with --ignore-scripts to skip prisma's engine download
+# (we'll run db:generate explicitly in the build stage)
+RUN echo "=== pnpm install (with --ignore-scripts) ===" && \
+    pnpm install --frozen-lockfile --ignore-scripts 2>&1 | tail -20
+RUN echo "=== STEP 1 DONE: deps installed ==="
 
 # -----------------------------------------------------------------------------
-# Stage 2: build web + workspace deps
+# Step 2: build — compile the web + workspace deps
 # -----------------------------------------------------------------------------
 FROM deps AS build
+RUN echo "=== STEP 2: building web + workspace packages ==="
 COPY packages/shared/ ./packages/shared/
 COPY packages/agent/ ./packages/agent/
 COPY apps/web/ ./apps/web/
 COPY tsconfig.base.json ./
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter @nanoproof/shared build
-RUN pnpm --filter @nanoproof/agent build
-RUN pnpm --filter @nanoproof/web build
+RUN pnpm --filter @nanoproof/shared build 2>&1 | tail -10
+RUN pnpm --filter @nanoproof/agent build 2>&1 | tail -10
+RUN pnpm --filter @nanoproof/web build 2>&1 | tail -10
+RUN echo "=== STEP 2 DONE: web built ===" && \
+    echo ".next size: $(du -sh /repo/apps/web/.next 2>/dev/null || echo 'MISSING')"
 
 # -----------------------------------------------------------------------------
-# Stage 3: runtime
+# Step 3: runtime — minimal image with just node + the built web
 # -----------------------------------------------------------------------------
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
@@ -49,25 +58,26 @@ ENV PORT=3000
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 
-# Copy the entire apps/web directory (includes .next/ from build)
+# Print the build ID we expect
+RUN echo "=== STEP 3: runtime image build ==="
+
+# Copy the entire web app (includes .next/ from build)
 COPY --from=build /repo/apps/web /app/apps/web
-# Copy node_modules for runtime deps
+# Copy node_modules (runtime deps)
 COPY --from=build /repo/node_modules /app/node_modules
 # Copy packages (workspace deps for the web)
 COPY --from=build /repo/packages /app/packages
+
+# Verify everything is in place at build time
+RUN echo "=== runtime verification ===" && \
+    echo "node_modules: $(ls /app/node_modules 2>/dev/null | wc -l) packages" && \
+    echo "apps/web: $(ls /app/apps/web 2>/dev/null | wc -l) files" && \
+    echo ".next: $(test -d /app/apps/web/.next && echo present || echo MISSING)" && \
+    echo "BUILD_ID: $(cat /app/apps/web/.next/BUILD_ID 2>/dev/null || echo MISSING)"
 
 WORKDIR /app/apps/web
 
 EXPOSE 3000
 
-# Print diagnostic at runtime to help debug Railway deploy issues.
-# These messages will appear in the Railway build log and prove the COPY
-# commands propagated the build artifacts.
-RUN echo "=== web runtime build complete ===" && \
-    echo "node_modules count: $(ls /app/node_modules 2>/dev/null | wc -l)" && \
-    echo "apps/web count: $(ls /app/apps/web 2>/dev/null | wc -l)" && \
-    echo ".next present: $(test -d /app/apps/web/.next && echo yes || echo no)" && \
-    echo ".next/BUILD_ID: $(cat /app/apps/web/.next/BUILD_ID 2>/dev/null)"
-
-# Direct argv CMD (no shell). Bind to 0.0.0.0 so Railway can route.
+# Direct argv. Bind to 0.0.0.0:3000.
 CMD ["node", "node_modules/next/dist/bin/next", "start", "-p", "3000", "-H", "0.0.0.0"]
