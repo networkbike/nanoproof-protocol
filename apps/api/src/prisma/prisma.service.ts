@@ -31,8 +31,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit(): Promise<void> {
-    await this.$connect();
-    this.logger.log("Prisma connected (pg adapter)");
+    // Lazy-connect: don't await. The first DB query will trigger the actual
+    // connection. This way, even if the Postgres host is briefly unreachable
+    // at startup, the HTTP server still binds to its port and /health responds.
+    // We log the connection result for observability but don't block startup.
+    this.$connect()
+      .then(() => this.logger.log("Prisma connected (pg adapter)"))
+      .catch((err) => this.logger.error(`Prisma initial connect failed (will retry on first query): ${err.message}`));
   }
 
   async onModuleDestroy(): Promise<void> {
