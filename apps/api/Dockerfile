@@ -53,6 +53,14 @@ RUN pnpm --filter @nanoproof/api build
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
+# Prisma needs OpenSSL 3.x at runtime (Debian Bookworm ships 1.1.x by default).
+# Without this, Prisma falls back to openssl-1.1.x detection and crashes on
+# connect because the underlying libssl version is wrong for the native engine.
+# Installed once here, then apt cache is removed to keep the image small.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production
 ENV PORT=4000
 
