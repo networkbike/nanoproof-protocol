@@ -3,6 +3,17 @@ packages:
   - "packages/*"
   - "contracts"
 
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  '@prisma/adapter-pg': true
+  '@scarf/scarf': false
+  '@swc/core': true
+  esbuild: true
+  prisma: true
+  sharp: false
+  unrs-resolver: true
+
 # Treat these as workspace-level catalogs so version bumps are global.
 catalog:
   typescript: ^5.5.0
@@ -14,3 +25,11 @@ catalog:
   turbo: ^2.0.0
   vitest: ^2.0.0
   "@changesets/cli": ^2.27.0
+
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - '@prisma/adapter-pg'
+  - '@swc/core'
+  - esbuild
+  - unrs-resolver
