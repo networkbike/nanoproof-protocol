@@ -70,4 +70,4 @@ EXPOSE 4000
 # Migrations run at container start (DATABASE_URL injected as env var by Fly).
 # Falls back to lazy Prisma init on first DB query if migrate fails.
 # Then the api starts.
-CMD ["sh", "-c", "npx prisma migrate deploy 2>&1 || echo 'migrate failed; continuing (Prisma will lazy-init)'; node dist/apps/api/src/main.js"]
+CMD ["node", "dist/apps/api/src/main.js"]
