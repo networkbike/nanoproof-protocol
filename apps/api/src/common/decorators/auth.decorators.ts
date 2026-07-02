@@ -55,6 +55,25 @@ export class ApiKeyGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest<Request & { principal?: Principal }>();
     req.principal = await this.authenticate(req);
 
+    // Demo mode bypass: when NANOPROOF_DEMO_MODE=true, treat all requests
+    // as authenticated with full scopes. This is the simplest way to
+    // make the dashboard work end-to-end for the Lepton demo without
+    // requiring every visitor to mint an API key.
+    if (process.env.NANOPROOF_DEMO_MODE === "true") {
+      req.principal = {
+        kind: "organization",
+        id: "demo-mode",
+        apiKeyId: "demo-mode",
+        scopes: [
+          "READ_CITATIONS", "WRITE_CITATIONS",
+          "READ_PAYMENTS", "WRITE_PAYMENTS",
+          "ADMIN",
+        ],
+        rateLimitPerMinute: 10000,
+      };
+      return true;
+    }
+
     if (isPublic) return true;
 
     const principal = req.principal!;

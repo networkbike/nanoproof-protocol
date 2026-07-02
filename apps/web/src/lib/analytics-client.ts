@@ -27,18 +27,25 @@ import type {
 } from "@nanoproof/shared/schemas/analytics";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// INTERNAL_API_KEY is a server-to-server credential used to authenticate
+// the dashboard's server-side data fetches. It's set as a Railway env
+// var on the web service and forwarded in the Authorization header.
+// If unset, falls back to the caller's cookie (which works for logged-in users).
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
 async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const h = await headers();
   const cookie = h.get("cookie") ?? "";
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    cookie,
+  };
+  if (INTERNAL_API_KEY) {
+    headers["authorization"] = `Bearer ${INTERNAL_API_KEY}`;
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: {
-      "content-type": "application/json",
-      // Forward the cookie so the api can read the API key
-      cookie,
-      ...(init?.headers ?? {}),
-    },
+    headers: { ...headers, ...(init?.headers ?? {}) },
     cache: "no-store",
   });
   if (!res.ok) {

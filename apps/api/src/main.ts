@@ -50,6 +50,30 @@ async function bootstrap() {
   await app.listen(port);
   Logger.log(`🚀 NanoProof API ready at http://localhost:${port}`, "Bootstrap");
   Logger.log(`📚 Swagger UI at http://localhost:${port}/docs`, "Bootstrap");
+
+  // Demo mode helper: when NANOPROOF_DEMO_MODE=true, log the pre-generated
+  // demo API key so operators can set it as INTERNAL_API_KEY on the web
+  // service. The key is seeded by the demo-seed prisma migration; this
+  // hook just surfaces its value for easy copy-paste.
+  if (process.env.NANOPROOF_DEMO_MODE === "true") {
+    try {
+      const { PrismaClient } = await import("@prisma/client");
+      const prisma = new PrismaClient();
+      const demoKey = await prisma.apiKey.findFirst({
+        where: { name: "demo-internal", isActive: true },
+        orderBy: { createdAt: "desc" },
+      });
+      if (demoKey) {
+        Logger.log(
+          `🔑 Demo internal API key (set as INTERNAL_API_KEY on web service): np_live_${demoKey.prefix}.<redacted>`,
+          "DemoMode",
+        );
+      }
+      await prisma.$disconnect();
+    } catch (err) {
+      Logger.warn(`Could not fetch demo key: ${(err as Error).message}`, "DemoMode");
+    }
+  }
 }
 
 bootstrap().catch((err) => {
