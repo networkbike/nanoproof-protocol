@@ -67,6 +67,10 @@ WORKDIR /app/apps/api
 
 EXPOSE 4000
 
+# Disable Docker-level healthcheck so Railway doesn't kill the container
+# before /health responds (NestJS startup can take >100s with Prisma init).
+HEALTHCHECK NONE
+
 # Migrations run at container start (DATABASE_URL injected as env var by Fly).
 # Falls back to lazy Prisma init on first DB query if migrate fails.
 # Then the api starts.
