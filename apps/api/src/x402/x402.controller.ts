@@ -64,7 +64,10 @@ const VerifySchema = z.object({
 const HistorySchema = z.object({
   creatorId: z.string().min(1).max(100).optional(),
   payerAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional(),
-  limit: z.number().int().min(1).max(200).optional(),
+  limit: z.preprocess(
+    (v) => (typeof v === "string" ? parseInt(v, 10) : v),
+    z.number().int().min(1).max(200).optional(),
+  ),
 });
 
 const DemoSchema = z.object({

@@ -56,7 +56,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       // it only creates missing objects (--accept-data-loss is required for
       // the rare destructive case which we accept for demo/dev).
       if (out.includes("No pending migrations") === false &&
-          out.includes("P3008") === false) {
+          out.includes("P3008") === false && out.includes("P3005") === false) {
         this.logger.error(`prisma migrate deploy FAILED: ${out || e.message}`);
         throw new Error(`Database migration failed: ${out || e.message}`);
       }
