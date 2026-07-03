@@ -1,4 +1,4 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { PrismaService } from "../../prisma/prisma.service.js";
 import { Public } from "../../common/decorators/index.js";
@@ -257,6 +257,96 @@ export class HealthController {
       checks,
       uptime: Math.floor((Date.now() - this.startTime) / 1000),
       timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * TEMPORARY: seed Phase 8 demo data (4 creators + N settlements).
+   * Used by the Lepton demo so judges see a populated dashboard.
+   */
+  @Public()
+  @Get("debug/seed-x402")
+  async debugSeedX402(@Query("count") count?: string): Promise<unknown> {
+    const n = count ? Math.min(parseInt(count, 10) || 25, 200) : 25;
+    const { X402Service } = await import("../../x402/x402.service.js");
+    const { ArcScanVerifierService } = await import("../../x402/arcscan-verifier.service.js");
+    const arcscan = new ArcScanVerifierService();
+    const x402 = new X402Service(this.prisma, arcscan);
+
+    const creatorsSpec = [
+      { id: "cr_demo_alice", username: "alice", email: "alice@nanoproof.local", name: "Alice Chen", bio: "AI research · ML safety · Web3 protocols", wallet: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" },
+      { id: "cr_demo_bob", username: "bob", email: "bob@nanoproof.local", name: "Bob Martinez", bio: "Cryptographer · zk circuits · protocol design", wallet: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" },
+      { id: "cr_demo_carol", username: "carol", email: "carol@nanoproof.local", name: "Carol Singh", bio: "DeFi research · stablecoin economics", wallet: "0x90F79bf6EB2c4f870365E785982E1f101E93b906" },
+      { id: "cr_demo_dave", username: "dave", email: "dave@nanoproof.local", name: "Dave Okafor", bio: "Web dev tutorials · React · Next.js", wallet: "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65" },
+    ];
+
+    const creators: Array<{ id: string; username: string }> = [];
+    for (const c of creatorsSpec) {
+      const creator = await this.prisma.creator.upsert({
+        where: { id: c.id },
+        update: { name: c.name, bio: c.bio, isActive: true },
+        create: {
+          id: c.id,
+          username: c.username,
+          email: c.email,
+          name: c.name,
+          bio: c.bio,
+          isActive: true,
+          reputationScore: 85 + Math.floor(Math.random() * 15),
+        },
+      });
+      await this.prisma.wallet.upsert({
+        where: { address_network: { address: c.wallet, network: "ARC_TESTNET" } },
+        update: { creatorId: creator.id, isPrimary: true, verificationStatus: "VERIFIED" },
+        create: {
+          creatorId: creator.id,
+          address: c.wallet,
+          network: "ARC_TESTNET",
+          isPrimary: true,
+          verificationStatus: "VERIFIED",
+          verificationMethod: "EIP-191",
+        },
+      });
+      creators.push({ id: creator.id, username: creator.username });
+    }
+
+    const resources = ["/v1/research/cite", "/v1/research/answer", "/v1/premium/source", "/v1/agent/tool"];
+    const amounts = ["1000", "2500", "5000", "10000"];
+    const payers = [
+      "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+      "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+      "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+      "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f",
+    ];
+
+    let created = 0;
+    let failed = 0;
+    for (let i = 0; i < n; i++) {
+      const creator = creators[i % creators.length]!;
+      const resource = resources[i % resources.length]!;
+      const amount = amounts[i % amounts.length]!;
+      const payer = payers[i % payers.length]!;
+      try {
+        const { request } = await x402.createPaymentRequest({
+          creatorId: creator.id,
+          resource,
+          amountUsdc: amount,
+          payerAddress: payer,
+        });
+        await x402.settlePayment({ requestId: request.id, payerAddress: payer });
+        created++;
+      } catch {
+        failed++;
+      }
+    }
+
+    const metrics = await x402.getProtocolMetrics();
+    return {
+      ok: true,
+      creators: creators.length,
+      settlementsCreated: created,
+      settlementsFailed: failed,
+      metrics,
     };
   }
 }
