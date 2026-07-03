@@ -12,12 +12,18 @@ export default function HomePage() {
           NanoProof is the open infrastructure layer that lets AI agents automatically compensate
           creators with USDC nanopayments whenever their work is cited in an AI-generated response.
         </p>
-        <div className="flex justify-center gap-3">
+        <div className="flex justify-center gap-3 flex-wrap">
           <Button asChild>
-            <Link href="/research">Try the research demo</Link>
+            <Link href="/payments">x402 Payment Flow</Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/dashboard">Open the dashboard</Link>
+            <Link href="/research">Research demo</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/dashboard">Dashboard</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/history">Settlement history</Link>
           </Button>
         </div>
       </section>

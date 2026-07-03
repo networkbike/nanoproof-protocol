@@ -1,3 +1,5 @@
+import * as React from "react";
+
 import { Suspense } from "react";
 import { Activity, BarChart3, CircleDollarSign, Coins, FileText, Layers, TrendingUp, Users, Wallet, Zap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,11 +20,16 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardOverviewPage() {
   // Fetch in parallel — each endpoint is small (10-50ms on a hot server).
-  const [overview, citationTs, payments, topSources] = await Promise.all([
+  // Phase 8: also pull x402 protocol metrics + recent settlement history.
+  const x402Import = await import("@/lib/x402-client");
+  const x402 = x402Import.x402Client;
+  const [overview, citationTs, payments, topSources, x402Metrics, _recentSettlements] = await Promise.all([
     analytics.overview(),
     analytics.citationTimeline("30d"),
     analytics.payments({ limit: 1 }), // for status breakdown only (Zod min(1))
     analytics.topSources(5),
+    x402.metrics().catch(() => null),
+    x402.history({ limit: 5 }).catch(() => ({ payments: [], proofs: [], requests: [] })),
   ]);
 
   const settledShare = payments.totalsByStatus.SETTLED / Math.max(overview.payments, 1);
@@ -67,6 +74,44 @@ export default async function DashboardOverviewPage() {
           delta={`${formatUsdCompact(overview.pendingUsdc)} pending`}
           href="/dashboard/payments"
         />
+      </div>
+
+      {/* Phase 8 — x402 Payment Protocol metrics */}
+      <div className="rounded-lg border border-indigo-500/30 bg-gradient-to-br from-indigo-950/40 to-slate-900/40 p-4">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <Badge variant="outline" className="border-indigo-500/40 text-indigo-300 bg-indigo-500/10">
+            Phase 8 · x402
+          </Badge>
+          <span className="text-xs text-slate-400">
+            HTTP 402 · EIP-3009 · Arc testnet · ArcScan verification
+          </span>
+          <a
+            href="/payments"
+            className="ml-auto text-xs text-amber-300 hover:text-amber-200"
+          >
+            Open x402 flow →
+          </a>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MiniKpi
+            label="402 challenges served"
+            value={formatCount(x402Metrics?.x402ChallengesServed ?? 0)}
+          />
+          <MiniKpi
+            label="x402 payments settled"
+            value={formatCount(x402Metrics?.x402PaymentsSettled ?? 0)}
+          />
+          <MiniKpi
+            label="ArcScan verified"
+            value={formatCount(x402Metrics?.totalVerified ?? 0)}
+            accent={x402Metrics && x402Metrics.totalFailed > 0 ? "amber" : "emerald"}
+          />
+          <MiniKpi
+            label="Unique supporters"
+            value={formatCount(x402Metrics?.uniqueSupporters ?? 0)}
+            accent="fuchsia"
+          />
+        </div>
       </div>
 
       {/* Story strip: the NanoProof flow Creator → Citation → Attribution → Payment → Settlement */}
@@ -218,6 +263,31 @@ function Arrow() {
       <svg width="24" height="12" viewBox="0 0 24 12" fill="none">
         <path d="M0 6h20m0 0l-4-4m4 4l-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// MiniKpi — compact KPI for the Phase 8 strip
+// -----------------------------------------------------------------------------
+function MiniKpi({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: "emerald" | "amber" | "fuchsia";
+}): React.ReactElement {
+  const accentClass = {
+    emerald: "text-emerald-300 border-emerald-500/30 bg-emerald-500/5",
+    amber: "text-amber-300 border-amber-500/30 bg-amber-500/5",
+    fuchsia: "text-fuchsia-300 border-fuchsia-500/30 bg-fuchsia-500/5",
+  }[accent ?? "emerald"];
+  return (
+    <div className={`rounded border ${accentClass} p-3`}>
+      <div className="text-[10px] uppercase tracking-wide text-slate-400 font-mono">{label}</div>
+      <div className="mt-0.5 text-xl font-semibold text-slate-100">{value}</div>
     </div>
   );
 }
