@@ -1,49 +1,38 @@
 # =============================================================================
-# NanoProof Web — Single-stage Dockerfile (Railway)
+# NanoProof Web — ULTRA-MINIMAL Dockerfile (Railway)
 # =============================================================================
-# One stage. Faster builds than multi-stage. Uses Railway's $PORT.
+# Bare-bones. Just enough to build and run Next.js on Railway's port.
+# No fancy optimizations — just the minimum to ship.
 # =============================================================================
 
 FROM node:22-bookworm-slim
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-ENV PRISMA_SKIP_POSTINSTALL_GENERATE=1
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
-# Don't set ENV PORT — let Railway's runtime PORT take effect.
 
+# corepack
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
-WORKDIR /repo
+WORKDIR /app
 
-# Copy manifests
+# Copy lockfile + package.jsons first (cached layer)
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
-COPY packages/ ./packages/
-COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/agent/package.json ./packages/agent/
 COPY apps/web/package.json ./apps/web/
-COPY contracts/ ./contracts/
 
-# Install — skip prisma postinstalls (we don't need them for the web)
+# Install ONLY web + workspace deps
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Copy source
+# Now copy source and build
 COPY packages/shared/ ./packages/shared/
 COPY packages/agent/ ./packages/agent/
 COPY apps/web/ ./apps/web/
 COPY tsconfig.base.json ./
+RUN cd /app/apps/web && pnpm exec next build
 
-# Build workspace deps + web — single pnpm invocation for speed
-RUN pnpm --filter @nanoproof/shared build && \
-    pnpm --filter @nanoproof/agent build && \
-    pnpm --filter @nanoproof/web build
-
-# Verify build output exists
-RUN echo "Build output:" && ls /repo/apps/web/.next/BUILD_ID 2>&1 || echo "BUILD_ID missing"
-
-WORKDIR /repo/apps/web
+WORKDIR /app/apps/web
 
 EXPOSE 3000
-
-# Use Railway's $PORT (defaults to 3000 if unset). Critical: -p ${PORT}
-# not -p 3000, so we bind to whatever Railway assigned.
-CMD ["sh", "-c", "exec node node_modules/next/dist/bin/next start -p ${PORT:-3000} -H 0.0.0.0"]
+CMD ["sh", "-c", "exec pnpm exec next start -p ${PORT:-3000} -H 0.0.0.0"]

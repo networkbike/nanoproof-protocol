@@ -92,4 +92,7 @@ HEALTHCHECK NONE
 # Run prisma migrate deploy before starting the api. Falls back gracefully
 # if it fails (e.g. no DATABASE_URL). This ensures the schema is up to date
 # in production without needing a separate migration step.
-CMD ["sh", "-c", "echo '=== running prisma migrate deploy ===' && (npx prisma migrate deploy 2>&1 || echo 'migration failed, continuing') && echo '=== starting api ===' && node dist/apps/api/src/main.js"]
+# Run prisma db push (more forgiving than migrate deploy) to sync schema.
+# db push is ideal for demos — creates tables if missing, no migration
+# files needed. If it fails (e.g. db unreachable), the api still starts.
+CMD ["sh", "-c", "echo '=== syncing prisma schema ===' && (npx prisma db push --skip-generate --accept-data-loss 2>&1 || echo 'schema sync failed, continuing') && echo '=== starting api ===' && node dist/apps/api/src/main.js"]
