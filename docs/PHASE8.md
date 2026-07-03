@@ -177,4 +177,4 @@ All public (no auth required) — Phase 8 is designed for open agent access.
   `signature` are validated structurally — production needs full ECDSA recovery).
 - Swap synthetic txHash generation for live Arc RPC submission via viem or ethers.
 - Move SettlementProof to an append-only trigger (currently Prisma-enforced).
-- Add multi-asset support (EURC, USDC on Base, etc.) via the x402 `accepts` array.
+- Add multi-asset support (EURC, USDC on Base, etc.) via the x402 `accepts` array.<!-- Fri Jul  3 14:01:30 UTC 2026 -->
