@@ -130,6 +130,7 @@ model Creator {
   sources                 Source[]
   citations               Citation[]               @relation("CreatorCitations")
   payments                Payment[]                @relation("CreatorPayments")
+  paymentRequests         PaymentRequest[]         @relation("CreatorPaymentRequests")
   apiKeys                 ApiKey[]
 
   @@index([username])
@@ -282,7 +283,7 @@ model SourceVerification {
   id            String                   @id @default(cuid()) // ver_<ulid>
   sourceId      String
   method        SourceVerificationMethod
-  status        VerificationStatus       @default(PENDING)
+  status        VerificationStatus              @default(PENDING)
   token         String // DNS TXT or HTML meta tag value
   expected      String // what we expected the creator to publish
   observed      String? // what we actually saw
@@ -377,8 +378,10 @@ model Payment {
   prevHash String?
   hash     String?
 
-  creator Creator @relation("CreatorPayments", fields: [creatorId], references: [id], onDelete: Cascade)
-  source  Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  creator           Creator          @relation("CreatorPayments", fields: [creatorId], references: [id], onDelete: Cascade)
+  source            Source?          @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  paymentRequests   PaymentRequest[] @relation("PaymentToRequest")
+  settlementProof   SettlementProof?  @relation("PaymentToProof")
 
   @@index([creatorId, settledAt])
   @@index([status])
@@ -443,4 +446,232 @@ model IdempotencyKey {
 
   @@index([expiresAt])
   @@map("idempotency_keys")
+}
+
+// =============================================================================
+// PHASE 8 — x402 Payment Protocol + Arc Settlement Proof + ArcScan Verification
+// =============================================================================
+//
+// x402 (Coinbase open standard) — HTTP 402 Payment Required for nano-payments.
+//   Spec: https://www.x402.org/
+//   Headers: PAYMENT-REQUIRED (server -> client, base64-encoded challenge)
+//            PAYMENT-SIGNATURE (client -> server, base64-encoded signed auth)
+//            PAYMENT-RESPONSE (server -> client, settlement confirmation)
+//
+// Arc testnet:
+//   RPC:       https://rpc.testnet.arc.network
+//   Chain ID:  5042002
+//   USDC:      0x3600000000000000000000000000000000000000 (ERC-20 interface, 6 decimals)
+//   Explorer:  https://testnet.arcscan.app
+//   ArcScan API (Blockscout v2): https://testnet.arcscan.app/api/v2
+//
+// New models:
+//   PaymentRequest      — x402 payment challenge (the 402 response payload)
+//   SettlementProof     — immutable onchain settlement receipt for a Payment
+//   VerificationEvent   — append-only log of every ArcScan verification attempt
+//   Supporter           — payer (AI agent or human wallet) aggregate
+//   ProtocolMetrics     — singleton protocol-wide counters
+//
+// -----------------------------------------------------------------------------
+// PaymentRequest — x402 payment challenge
+//
+// One PaymentRequest is created per 402 challenge. Carries the exact terms
+// (amount, recipient, network, asset) the client must sign against, plus
+// the EIP-3009 nonce + validity window. The `x402Challenge` JSON column is
+// what gets base64-encoded into the `PAYMENT-REQUIRED` response header.
+//
+// Status lifecycle:
+//   QUOTED      -> emitted to client
+//   AUTHORIZED  -> client returned signed PAYMENT-SIGNATURE
+//   SETTLED     -> onchain settlement observed, SettlementProof created
+//   EXPIRED     -> validBefore passed without settlement
+//   FAILED      -> settlement attempted but reverted / nonce conflict
+// -----------------------------------------------------------------------------
+
+model PaymentRequest {
+  id           String              @id @default(cuid()) // "preq_<ulid>"
+  creatorId    String
+  resource     String              // URI being paid for, e.g. "/v1/research/answer"
+  resourceId   String?             // optional FK to citation/source/etc.
+  description  String?
+
+  // Payment terms (the actual x402 challenge payload)
+  amountUsdc   String              // atomic units, e.g. "10000" = $0.01
+  currency     String              @default("USDC")
+  network      String              @default("ARC_TESTNET")
+  chainId      Int                 @default(5042002)
+  assetAddress String              @default("0x3600000000000000000000000000000000000000")
+  payTo        String              // settlement destination (creator's wallet)
+  facilitator  String              @default("0x0000000000000000000000000000000000000000")
+
+  // EIP-3009 validity window
+  validAfter   BigInt              @default(0)
+  validBefore  BigInt              // unix seconds
+  nonce        String              @unique // 32-byte hex, EIP-3009 nonce
+
+  // x402 envelope (the actual challenge JSON the server returns)
+  x402Challenge Json
+
+  // Lifecycle
+  status       PaymentRequestStatus @default(QUOTED)
+  paymentId    String?             @unique // -> Payment.id when settled
+
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  quotedAt     DateTime?
+  authorizedAt DateTime?
+  settledAt    DateTime?
+  expiredAt    DateTime?
+
+  creator      Creator             @relation("CreatorPaymentRequests", fields: [creatorId], references: [id], onDelete: Cascade)
+  payment      Payment?            @relation("PaymentToRequest", fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([creatorId, status])
+  @@index([status, createdAt])
+  @@map("payment_requests")
+}
+
+enum PaymentRequestStatus {
+  QUOTED       // 402 emitted, awaiting client signature
+  AUTHORIZED   // client returned PAYMENT-SIGNATURE
+  SETTLED      // onchain settlement confirmed
+  EXPIRED      // validBefore passed
+  FAILED       // settlement failed (revert, bad signature, etc.)
+}
+
+// -----------------------------------------------------------------------------
+// SettlementProof — immutable onchain settlement receipt for a Payment
+//
+// Created immediately after the facilitator confirms a transferWithAuthorization
+// on Arc. Carries the onchain evidence (txHash, blockNumber, arcScanUrl) plus
+// the verification status from ArcScan. Once created, never mutated (only
+// `verificationStatus` advances via separate VerificationEvent rows + a
+// trigger that locks the row after SETTLED).
+// -----------------------------------------------------------------------------
+
+model SettlementProof {
+  id                   String                @id @default(cuid()) // "sprf_<ulid>"
+  paymentId            String                @unique
+  paymentHash          String                @unique // sha256(canonical payment payload)
+  txHash               String                @unique
+  blockNumber          BigInt
+  blockTimestamp       DateTime
+  blockHash            String?
+  arcScanUrl           String
+  facilitator          String
+  network              String                @default("ARC_TESTNET")
+  chainId              Int                   @default(5042002)
+
+  // Settlement terms (denormalized for immutable record)
+  amountUsdc           String
+  assetAddress         String
+  payerAddress         String                // supporter / AI agent
+  payeeAddress         String                // creator's settlement wallet
+  nonce                String
+
+  // Verification state
+  verificationStatus   SettlementVerificationStatus    @default(PENDING)
+  confirmedAt          DateTime?
+  verificationAttempts Int                   @default(0)
+  lastCheckedAt        DateTime?
+
+  // Hash chain (tamper-evident link to previous SettlementProof for this creator)
+  prevHash             String
+  hash                 String                @unique // sha256(prevHash + this canonical body)
+
+  // Lifecycle
+  createdAt            DateTime              @default(now())
+
+  payment              Payment               @relation("PaymentToProof", fields: [paymentId], references: [id], onDelete: Cascade)
+  events               VerificationEvent[]
+
+  @@index([verificationStatus, createdAt])
+  @@index([txHash])
+  @@index([blockNumber])
+  @@map("settlement_proofs")
+}
+
+enum SettlementVerificationStatus {
+  PENDING       // awaiting first ArcScan check
+  VERIFIED      // ArcScan confirms tx is mined + success
+  FAILED        // ArcScan returns failure / tx not found / revert
+  INCONCLUSIVE  // network issues; needs retry
+}
+
+// -----------------------------------------------------------------------------
+// VerificationEvent — append-only log of every verification attempt
+//
+// One row per verification call (every /payments/verify/:id hit, every
+// background re-check). Used to show the timeline in the UI.
+// -----------------------------------------------------------------------------
+
+model VerificationEvent {
+  id           String              @id @default(cuid()) // "vev_<ulid>"
+  proofId      String
+  txHash       String
+  status       String              // "VERIFIED" | "FAILED" | "INCONCLUSIVE" | "ERROR"
+  confirmations Int
+  source       String              // "ARCSCAN" | "ONCHAIN" | "HASH_CHAIN"
+  payload      Json
+  blockNumber  BigInt?
+  errorMessage String?
+
+  checkedAt    DateTime            @default(now())
+
+  proof        SettlementProof     @relation(fields: [proofId], references: [id], onDelete: Cascade)
+
+  @@index([proofId, checkedAt])
+  @@index([status, checkedAt])
+  @@map("verification_events")
+}
+
+// -----------------------------------------------------------------------------
+// Supporter — payer aggregate (AI agent or human wallet)
+//
+// Aggregates `totalPaid`, `totalPayments`, and timestamps per unique
+// supporter wallet address. Updated atomically on each settlement.
+// -----------------------------------------------------------------------------
+
+model Supporter {
+  id              String    @id @default(cuid()) // "sup_<ulid>"
+  address         String    @unique // wallet address (lowercase)
+  totalPaid       String    @default("0") // atomic USDC
+  totalPayments   Int       @default(0)
+  firstSeenAt     DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+
+  // Optional metadata
+  userAgent       String?   // "Mozilla/5.0..." or "axios/1.x"
+  label           String?   // optional human/agent label
+  metadata        Json      @default("{}")
+
+  @@index([totalPaid])
+  @@map("supporters")
+}
+
+// -----------------------------------------------------------------------------
+// ProtocolMetrics — singleton protocol-wide counters
+//
+// Always id="protocol_metrics_singleton". Updated transactionally on every
+// settlement via a service-layer upsert. Powers the dashboard metrics cards.
+// -----------------------------------------------------------------------------
+
+model ProtocolMetrics {
+  id                    String   @id @default("protocol_metrics_singleton")
+  totalPayments         BigInt   @default(0)
+  totalSettlements      BigInt   @default(0)
+  totalVerifications    BigInt   @default(0)
+  totalVerified         BigInt   @default(0)
+  totalFailed           BigInt   @default(0)
+  totalUsdcDistributed  String   @default("0") // atomic USDC
+  totalFeesCollected    String   @default("0")
+  uniqueSupporters      Int      @default(0)
+  uniqueCreators        Int      @default(0)
+  x402ChallengesServed  BigInt   @default(0)
+  x402PaymentsSettled   BigInt   @default(0)
+  lastSettlementAt      DateTime?
+  lastVerifiedAt        DateTime?
+  updatedAt             DateTime @updatedAt
+
+  @@map("protocol_metrics")
 }
