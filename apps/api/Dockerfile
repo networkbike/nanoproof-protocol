@@ -89,4 +89,7 @@ HEALTHCHECK NONE
 # Migrations run at container start (DATABASE_URL injected as env var by Fly).
 # Falls back to lazy Prisma init on first DB query if migrate fails.
 # Then the api starts.
-CMD ["node", "dist/apps/api/src/main.js"]
+# Run prisma migrate deploy before starting the api. Falls back gracefully
+# if it fails (e.g. no DATABASE_URL). This ensures the schema is up to date
+# in production without needing a separate migration step.
+CMD ["sh", "-c", "echo '=== running prisma migrate deploy ===' && (npx prisma migrate deploy 2>&1 || echo 'migration failed, continuing') && echo '=== starting api ===' && node dist/apps/api/src/main.js"]
