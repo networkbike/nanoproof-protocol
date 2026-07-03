@@ -52,4 +52,4 @@ export function formatRelative(iso: string): string {
 export function truncateAddress(addr: string, head = 6, tail = 4): string {
   if (addr.length <= head + tail + 1) return addr;
   return `${addr.slice(0, head)}…${addr.slice(-tail)}`;
-}
+}/* force-rebuild-1783089847 */
