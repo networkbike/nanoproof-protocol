@@ -66,10 +66,6 @@ RUN apt-get update \
 
 ENV NODE_ENV=production
 ENV PORT=4000
-# Force Prisma to use the bundled JS engine (no native binary needed).
-# driverAdapters: true already makes pg the actual data path; this
-# just prevents Prisma from trying to dlopen the native engine.
-ENV PRISMA_CLIENT_ENGINE_TYPE=library
 
 # Copy everything needed at runtime
 COPY --from=build /repo/node_modules ./node_modules
@@ -89,10 +85,6 @@ HEALTHCHECK NONE
 # Migrations run at container start (DATABASE_URL injected as env var by Fly).
 # Falls back to lazy Prisma init on first DB query if migrate fails.
 # Then the api starts.
-# Run prisma migrate deploy before starting the api. Falls back gracefully
-# if it fails (e.g. no DATABASE_URL). This ensures the schema is up to date
-# in production without needing a separate migration step.
-# Run prisma db push (more forgiving than migrate deploy) to sync schema.
-# db push is ideal for demos — creates tables if missing, no migration
-# files needed. If it fails (e.g. db unreachable), the api still starts.
+# Run prisma db push before starting the api. db push is more forgiving
+# than migrate deploy (doesn't need migration history). Falls back gracefully.
 CMD ["sh", "-c", "echo '=== syncing prisma schema ===' && (npx prisma db push --skip-generate --accept-data-loss 2>&1 || echo 'schema sync failed, continuing') && echo '=== starting api ===' && node dist/apps/api/src/main.js"]
