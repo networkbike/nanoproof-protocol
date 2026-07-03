@@ -263,6 +263,7 @@ export class OtpService {
     text: string,
     cfg: AuthProviderConfig,
   ): Promise<string | undefined> {
+    this.logger.log(`[Resend] POST https://api.resend.com/emails from="${cfg.senderName} <${cfg.sender}>" to="${to}"`);
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -277,8 +278,14 @@ export class OtpService {
         text,
       }),
     });
-    if (!r.ok) throw new Error(`Resend ${r.status}: ${await r.text()}`);
-    const j = await r.json();
+    const responseText = await r.text();
+    if (!r.ok) {
+      this.logger.error(`[Resend] ${r.status} error: ${responseText}`);
+      throw new Error(`Resend ${r.status}: ${responseText}`);
+    }
+    let j: any = {};
+    try { j = JSON.parse(responseText); } catch (e) { /* not JSON */ }
+    this.logger.log(`[Resend] ${r.status} OK: id=${j.id}, response=${responseText.slice(0, 200)}`);
     return j.id;
   }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Logger, Post } from "@nestjs/common";
 import { OtpService } from "./otp.service";
 import { Public } from "../common/decorators/index.js";
 
@@ -41,6 +41,16 @@ export class AuthController {
     }
 
     const result = await this.otp.sendOtp(dto.email);
+    const logger = new Logger("AuthController");
+    if (result.ok) {
+      if (result.providerMessageId) {
+        logger.log(`Resend sent OTP to ${dto.email} — messageId=${result.providerMessageId}`);
+      } else {
+        logger.warn(`OTP generated for ${dto.email} but no provider messageId returned. Provider may have silently failed. Check Resend dashboard logs.`);
+      }
+    } else {
+      logger.error(`sendOtp failed for ${dto.email}: ${result.error}`);
+    }
     return {
       ok: result.ok,
       ttl: result.ttl,
