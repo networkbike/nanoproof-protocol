@@ -143,19 +143,32 @@ export class OtpService {
       return { provider: "demo", sender, senderName };
     }
 
-    // Aliases: RESEND_API_KEY → OTP_API_KEY for the resend provider
-    const apiKey = this.config.get<string>("OTP_API_KEY")
-      || this.config.get<string>("RESEND_API_KEY")
-      || this.config.get<string>("SENDGRID_API_KEY")
-      || this.config.get<string>("MAILGUN_API_KEY")
-      || this.config.get<string>("POSTMARK_API_TOKEN");
+    // Per-provider canonical names, with sensible aliases for compatibility.
+    // - resend:     RESEND_API_KEY     (alias: OTP_API_KEY)
+    // - sendgrid:   SENDGRID_API_KEY   (alias: OTP_API_KEY)
+    // - mailgun:    MAILGUN_API_KEY    (alias: OTP_API_KEY)
+    // - postmark:   POSTMARK_API_TOKEN (alias: OTP_API_KEY)
+    // - smtp:       SMTP_PASSWORD      (alias: OTP_API_SECRET)
+    const aliasesByProvider: Record<string, string[]> = {
+      resend:   ["RESEND_API_KEY", "OTP_API_KEY"],
+      sendgrid: ["SENDGRID_API_KEY", "OTP_API_KEY"],
+      mailgun:  ["MAILGUN_API_KEY", "OTP_API_KEY"],
+      postmark: ["POSTMARK_API_TOKEN", "OTP_API_KEY"],
+      smtp:     ["SMTP_PASSWORD", "OTP_API_SECRET"],
+    };
+    const keys = aliasesByProvider[provider] || ["OTP_API_KEY"];
+    let apiKey: string | undefined;
+    for (const k of keys) {
+      const v = this.config.get<string>(k);
+      if (v) { apiKey = v; break; }
+    }
     const apiSecret = this.config.get<string>("OTP_API_SECRET");
     const apiUrl = this.config.get<string>("OTP_API_URL");
 
     if (!apiKey) {
+      const expectedKey = keys[0] || "OTP_API_KEY";
       this.logger.warn(
-        `AUTH_PROVIDER=${provider} but no API key is set. ` +
-        `Set RESEND_API_KEY (or OTP_API_KEY) on the Railway service.`,
+        `AUTH_PROVIDER=${provider} but ${expectedKey} is missing — falling back to demo mode.`,
       );
       return { provider: "demo", sender, senderName };
     }
