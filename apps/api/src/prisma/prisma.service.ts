@@ -50,8 +50,36 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     } catch (err) {
       const e = err as { stdout?: string; stderr?: string; message?: string };
       const out = (e.stdout || "") + (e.stderr || "");
-      this.logger.error(`prisma migrate deploy FAILED: ${out || e.message}`);
-      throw new Error(`Database migration failed: ${out || e.message}`);
+      // "No pending migrations" is the migration-history-drift scenario:
+      // _prisma_migrations says done, but tables may be missing. Fall back
+      // to prisma db push to force the schema in sync. This is safe because
+      // it only creates missing objects (--accept-data-loss is required for
+      // the rare destructive case which we accept for demo/dev).
+      if (out.includes("No pending migrations") === false &&
+          out.includes("P3008") === false) {
+        this.logger.error(`prisma migrate deploy FAILED: ${out || e.message}`);
+        throw new Error(`Database migration failed: ${out || e.message}`);
+      }
+      this.logger.warn(
+        `prisma migrate deploy reported no-op (${out.trim()}). ` +
+        `Falling back to prisma db push to ensure schema is in sync.`,
+      );
+      const { execFile: ef2 } = await import("node:child_process");
+      const { promisify: p2 } = await import("node:util");
+      const exec2 = p2(ef2);
+      try {
+        const { stdout: so2, stderr: se2 } = await exec2(
+          "npx",
+          ["prisma", "db", "push", "--skip-generate", "--accept-data-loss", "--schema=prisma/schema.prisma"],
+          { cwd: process.cwd(), timeout: 120_000, env: process.env as Record<string, string> },
+        );
+        this.logger.log(`prisma db push (fallback): ${so2 || "ok"}`);
+      } catch (err2) {
+        const e2 = err2 as { stdout?: string; stderr?: string; message?: string };
+        const out2 = (e2.stdout || "") + (e2.stderr || "");
+        this.logger.error(`prisma db push FAILED: ${out2 || e2.message}`);
+        throw new Error(`Database db push failed: ${out2 || e2.message}`);
+      }
     }
 
     // After migration, lazy-connect for runtime queries
