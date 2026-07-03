@@ -41,7 +41,11 @@ NanoProof is the open infrastructure layer that lets AI agents automatically com
 
 | Page | URL | Status |
 |---|---|---|
-| Web home (judge entry) | https://nanoproof-web-production.up.railway.app | ✅ 200 |
+| Web landing (judge entry) | https://nanoproof-web-production.up.railway.app/landing | ✅ 200 |
+| Sign in (Email OTP) | https://nanoproof-web-production.up.railway.app/sign-in | ✅ 200 |
+| Creator dashboard | https://nanoproof-web-production.up.railway.app/creator | ✅ 200 |
+| Supporter dashboard | https://nanoproof-web-production.up.railway.app/supporter | ✅ 200 |
+| Interactive demo wizard | https://nanoproof-web-production.up.railway.app/demo | ✅ 200 |
 | x402 payment flow | https://nanoproof-web-production.up.railway.app/payments | ✅ 200 |
 | Settlement history | https://nanoproof-web-production.up.railway.app/history | ✅ 200 |
 | Dashboard | https://nanoproof-web-production.up.railway.app/dashboard | ✅ 200 |
@@ -125,3 +129,47 @@ Solo developer — Donyemiight (Temitope Ademidun)
 **Submission window closes**: Jul 6, 2026
 **Tagged release**: v1.0.0-rc.1
 **Recommended demo path**: `/payments` → click button → `/history` → `/dashboard` (60 seconds total)
+---
+
+## Authentication (Phase 10 — Final Frontend)
+
+NanoProof supports **passwordless Email OTP authentication** via any provider:
+
+| Provider | Auth Provider Setting | Required env |
+|---|---|---|
+| SendGrid | `AUTH_PROVIDER=sendgrid` | `OTP_API_KEY` |
+| Mailgun | `AUTH_PROVIDER=mailgun` | `OTP_API_KEY`, `OTP_API_URL` |
+| Resend | `AUTH_PROVIDER=resend` | `OTP_API_KEY` |
+| Postmark | `AUTH_PROVIDER=postmark` | `OTP_API_KEY` |
+| Demo (default) | (unset) | none — judges can sign in with any 6-digit code |
+
+### Required Railway env vars for production
+
+```bash
+AUTH_PROVIDER=resend              # or sendgrid/mailgun/postmark
+OTP_API_KEY=re_xxxxxxxxxxxxxxxx   # your provider key
+OTP_SENDER=no-reply@yourdomain.com
+OTP_SENDER_NAME="NanoProof"
+JWT_SECRET=<64+ char random>
+JWT_EXPIRES_IN=7d
+COOKIE_SECRET=<64+ char random>   # reserved for future cookie auth
+```
+
+### Sign-in flow
+
+1. User clicks **Sign in** → `/sign-in`
+2. Enters email
+3. Backend generates 6-digit code (5-min TTL)
+4. Backend calls provider → email sent
+5. User enters code
+6. Backend verifies → issues HMAC-SHA256 JWT
+7. Web stores session in localStorage
+8. Role selection (Creator / Supporter) on first sign-in
+9. Redirect to `/creator` or `/supporter`
+
+### Demo mode fallback
+
+When `AUTH_PROVIDER` is unset or backend OTP is unreachable, the web layer
+falls back to demo mode: any 6-digit code is accepted. Judges always
+get a working sign-in flow.
+
