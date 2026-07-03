@@ -11,6 +11,7 @@ import { CitationsModule } from "./modules/citations/citations.module.js";
 import { PaymentsModule } from "./modules/payments/payments.module.js";
 import { ApiKeysModule } from "./modules/apikeys/apikeys.module.js";
 import { AnalyticsModule } from "./modules/analytics/analytics.module.js";
+import { X402Module } from "./x402/x402.module.js";
 import { ApiKeyGuard } from "./common/decorators/index.js";
 import { IdempotencyInterceptor } from "./common/interceptors/idempotency.interceptor.js";
 import { PrismaService } from "./prisma/prisma.service.js";
@@ -34,6 +35,7 @@ import { Reflector } from "@nestjs/core";
     PaymentsModule,
     ApiKeysModule,
     AnalyticsModule,
+    X402Module,
   ],
   providers: [
     // Global ApiKey guard.
