@@ -5,12 +5,11 @@ import type { NextRequest } from "next/server";
 const API = process.env.NEXT_PUBLIC_API_URL || "https://nanoproof-api-production.up.railway.app";
 
 /**
- * Generate a 6-digit OTP and dispatch via backend.
+ * Generate a 6-digit OTP and dispatch via the backend.
  *
- * Fallback chain:
- *   1. Backend /auth/otp/send (production)
- *   2. Web-layer demo fallback (if backend is unreachable or 404s) —
- *      returns the OTP in devOtp so the judge can sign in.
+ * PRODUCTION ONLY. There is no web-layer demo fallback.
+ * If the backend is unreachable, we surface a clear error explaining
+ * which Railway environment variables need to be configured.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -22,49 +21,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
     }
 
+    let r: Response;
     try {
-      const r = await fetch(`${API}/auth/otp/send`, {
+      r = await fetch(`${API}/auth/otp/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
         cache: "no-store",
       });
-
-      // If backend returns a clean response, use it.
-      if (r.ok) {
-        const data = await r.json();
-        return NextResponse.json(data);
-      }
-
-      // Backend returned 4xx/5xx — fall back to web-layer demo
-      // (so judges can sign in even if backend OTP isn't deployed yet).
-      const devOtp = generateOtp();
-      console.warn(`[auth-fallback] backend OTP ${r.status} for ${email}; using web-layer demo OTP`);
-      return NextResponse.json({
-        ok: true,
-        ttl: 300,
-        message: `Demo mode — backend OTP not available, using web-layer OTP.`,
-        devOtp,
-      });
     } catch (e) {
-      // Backend unreachable — fall back
-      const devOtp = generateOtp();
-      console.warn(`[auth-fallback] backend unreachable for ${email}: ${e instanceof Error ? e.message : e}`);
-      return NextResponse.json({
-        ok: true,
-        ttl: 300,
-        message: `Demo mode — backend unreachable.`,
-        devOtp,
-      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Authentication service unreachable. The backend may be down or still deploying.",
+          hint: "If this is the first deploy, wait 2-3 minutes for Railway to restart. Otherwise check Railway logs for the nanoproof-api service.",
+        },
+        { status: 503 },
+      );
     }
+
+    if (!r.ok) {
+      const text = await r.text();
+      let parsed: any = {};
+      try { parsed = JSON.parse(text); } catch { /* not JSON */ }
+      return NextResponse.json(
+        {
+          ok: false,
+          error: parsed?.error || parsed?.message || `Backend rejected the request (HTTP ${r.status})`,
+          hint: parsed?.hint || "Check that RESEND_API_KEY, EMAIL_FROM, and JWT_SECRET are set on the nanoproof-api service in Railway.",
+        },
+        { status: r.status },
+      );
+    }
+
+    const data = await r.json();
+    return NextResponse.json(data);
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Failed to send OTP" },
+      { ok: false, error: e instanceof Error ? e.message : "Failed to send OTP" },
       { status: 500 },
     );
   }
-}
-
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
 }

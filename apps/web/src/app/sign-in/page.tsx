@@ -1,12 +1,18 @@
-"use client"
-/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type */
-;
+"use client";
 
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type Step = "email" | "otp" | "role" | "redirect";
+
+interface AuthStatus {
+  configured: boolean;
+  provider: string;
+  mode: string;
+  otpLength: number;
+  ttlSeconds: number;
+}
 
 export default function SignInPage() {
   const router = useRouter();
@@ -16,30 +22,40 @@ export default function SignInPage() {
   const [role, setRole] = useState<"creator" | "supporter" | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorHint, setErrorHint] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [devOtp, setDevOtp] = useState<string | null>(null);
-  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [status, setStatus] = useState<AuthStatus | null>(null);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkConfigured();
+  }, []);
 
   async function checkConfigured() {
+    setStatusLoading(true);
+    setStatusError(null);
     try {
       const r = await fetch("/api/auth/status");
+      if (!r.ok) {
+        setStatusError("Authentication service is unreachable.");
+        setStatus(null);
+        return;
+      }
       const d = await r.json();
-      setConfigured(d.configured);
+      setStatus(d);
     } catch {
-      setConfigured(false);
+      setStatusError("Cannot reach the authentication service. The backend may still be deploying.");
+    } finally {
+      setStatusLoading(false);
     }
   }
-
-  // Check on mount
-  useState(() => {
-    checkConfigured();
-  });
 
   async function sendOtp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setErrorHint(null);
     setInfo(null);
-    setDevOtp(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError("Please enter a valid email address.");
       return;
@@ -52,9 +68,12 @@ export default function SignInPage() {
         body: JSON.stringify({ email }),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Failed to send OTP");
-      if (d.devOtp) setDevOtp(d.devOtp);
-      setInfo(d.message || "Check your email for a 6-digit code.");
+      if (!r.ok || !d.ok) {
+        setError(d.error || "Failed to send OTP");
+        setErrorHint(d.hint || null);
+        return;
+      }
+      setInfo(`A 6-digit code has been sent to ${email}. It expires in ${Math.floor((d.ttl || 300) / 60)} minutes.`);
       setStep("otp");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send OTP");
@@ -66,6 +85,7 @@ export default function SignInPage() {
   async function verifyOtp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setErrorHint(null);
     if (!/^\d{6}$/.test(otp)) {
       setError("Please enter the 6-digit code.");
       return;
@@ -78,10 +98,12 @@ export default function SignInPage() {
         body: JSON.stringify({ email, otp }),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Invalid code");
-      // Persist session
+      if (!r.ok || !d.ok) {
+        setError(d.error || "Verification failed");
+        setErrorHint(d.hint || null);
+        return;
+      }
       localStorage.setItem("nanoproof-session", JSON.stringify(d.session));
-      // Check if role was selected previously
       const storedRole = localStorage.getItem("nanoproof-role");
       if (storedRole) {
         router.push(storedRole === "creator" ? "/creator" : "/supporter");
@@ -117,20 +139,61 @@ export default function SignInPage() {
       </header>
 
       <div className="mx-auto max-w-md px-6 py-16">
-        {configured === false && (
+        {/* Auth status banner — real, not a fake demo banner */}
+        {!statusLoading && (statusError || !status) && (
+          <div className="mb-6 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+            <div className="font-semibold">Authentication service unavailable</div>
+            <p className="mt-1 text-rose-800">
+              {statusError || "Cannot reach the auth service."}
+            </p>
+            <p className="mt-2 text-xs text-rose-700">
+              The backend may still be deploying. Check Railway → nanoproof-api → Deployments.
+            </p>
+          </div>
+        )}
+
+        {!statusLoading && status && !status.configured && (
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <div className="font-semibold">Email provider not configured</div>
             <p className="mt-1 text-amber-800">
-              Authentication is in <strong>demo mode</strong>. Use any email and the OTP{" "}
-              <code className="rounded bg-amber-100 px-1 font-mono">123456</code> to sign in.
-              Configure an OTP provider on Railway to enable real email delivery.
+              Authentication is not yet ready. Set the following Railway environment variables on the{" "}
+              <code className="rounded bg-amber-100 px-1 font-mono">nanoproof-api</code> service:
             </p>
+            <ul className="mt-2 space-y-1 font-mono text-xs text-amber-900">
+              <li>• <code>AUTH_PROVIDER=resend</code></li>
+              <li>• <code>RESEND_API_KEY=re_xxx...</code></li>
+              <li>• <code>EMAIL_FROM=onboarding@resend.dev</code></li>
+              <li>• <code>JWT_SECRET=&lt;64-char random string&gt;</code></li>
+            </ul>
+            <p className="mt-3 text-xs text-amber-800">
+              After saving, wait 2-3 minutes for Railway to redeploy, then refresh this page.
+            </p>
+          </div>
+        )}
+
+        {!statusLoading && status && status.configured && (
+          <div className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="font-semibold">Email OTP ready</span>
+              <span className="text-emerald-700">— provider: {status.provider}</span>
+            </div>
           </div>
         )}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
           {step === "email" && (
-            <EmailStep email={email} setEmail={setEmail} onSubmit={sendOtp} loading={loading} error={error} />
+            <EmailStep
+              email={email}
+              setEmail={setEmail}
+              onSubmit={sendOtp}
+              loading={loading}
+              error={error}
+              errorHint={errorHint}
+              disabled={!status?.configured}
+            />
           )}
           {step === "otp" && (
             <OtpStep
@@ -140,10 +203,11 @@ export default function SignInPage() {
               onSubmit={verifyOtp}
               loading={loading}
               error={error}
+              errorHint={errorHint}
               info={info}
-              devOtp={devOtp}
-              onResend={() => sendOtp(new Event("submit") as any)}
               onChangeEmail={() => setStep("email")}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              onResend={() => sendOtp({ preventDefault: () => {} } as any)}
             />
           )}
           {step === "role" && (
@@ -171,12 +235,16 @@ function EmailStep({
   onSubmit,
   loading,
   error,
+  errorHint,
+  disabled,
 }: {
   email: string;
   setEmail: (s: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   loading: boolean;
   error: string | null;
+  errorHint: string | null;
+  disabled: boolean;
 }) {
   return (
     <form onSubmit={onSubmit}>
@@ -202,11 +270,14 @@ function EmailStep({
         />
       </div>
       {error && (
-        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
+        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+          <div>{error}</div>
+          {errorHint && <div className="mt-1 text-xs text-rose-600">{errorHint}</div>}
+        </div>
       )}
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || disabled}
         className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
       >
         {loading ? (
@@ -214,14 +285,9 @@ function EmailStep({
             <Spinner /> Sending code…
           </>
         ) : (
-          <>Continue →</>
+          <>Send sign-in code →</>
         )}
       </button>
-      <div className="mt-4 flex items-center gap-3 text-xs text-slate-500">
-        <div className="h-px flex-1 bg-slate-200" />
-        <span>passwordless</span>
-        <div className="h-px flex-1 bg-slate-200" />
-      </div>
       <p className="mt-4 text-center text-xs text-slate-500">
         By signing in you agree to receive an authentication code by email.
       </p>
@@ -236,8 +302,8 @@ function OtpStep({
   onSubmit,
   loading,
   error,
+  errorHint,
   info,
-  devOtp,
   onResend,
   onChangeEmail,
 }: {
@@ -247,8 +313,8 @@ function OtpStep({
   onSubmit: (e: React.FormEvent) => void;
   loading: boolean;
   error: string | null;
+  errorHint: string | null;
   info: string | null;
-  devOtp: string | null;
   onResend: () => void;
   onChangeEmail: () => void;
 }) {
@@ -280,13 +346,11 @@ function OtpStep({
       {info && (
         <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{info}</div>
       )}
-      {devOtp && (
-        <div className="mt-3 rounded-md border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-800">
-          <span className="font-semibold">Demo mode OTP:</span> <code className="rounded bg-indigo-100 px-1.5 py-0.5 font-mono">{devOtp}</code>
-        </div>
-      )}
       {error && (
-        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
+        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+          <div>{error}</div>
+          {errorHint && <div className="mt-1 text-xs text-rose-600">{errorHint}</div>}
+        </div>
       )}
       <button
         type="submit"
@@ -317,13 +381,7 @@ function OtpStep({
   );
 }
 
-function RoleStep({
-  role,
-  onSelect,
-}: {
-  role: "creator" | "supporter" | null;
-  onSelect: (r: "creator" | "supporter") => void;
-}) {
+function RoleStep({ onSelect }: { role: "creator" | "supporter" | null; onSelect: (r: "creator" | "supporter") => void }) {
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-900">Welcome 👋</h1>

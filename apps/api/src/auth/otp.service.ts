@@ -52,7 +52,7 @@ export class OtpService {
       mode: cfg.provider === "demo" ? "demo" : "production",
       otpLength: this.OTP_LENGTH,
       ttlSeconds: this.TTL_MS / 1000,
-    };
+    } as AuthStatus;
   }
 
   async sendOtp(email: string): Promise<OtpSendResult> {
@@ -131,20 +131,31 @@ export class OtpService {
 
   private getProviderConfig(): AuthProviderConfig {
     const provider = (this.config.get<string>("AUTH_PROVIDER") || "demo").toLowerCase();
-    const sender = this.config.get<string>("OTP_SENDER") || "no-reply@nanoproof.dev";
-    const senderName = this.config.get<string>("OTP_SENDER_NAME") || "NanoProof Protocol";
+    // Support both naming conventions: OTP_SENDER/EMAIL_FROM and OTP_API_KEY/RESEND_API_KEY
+    const sender = this.config.get<string>("OTP_SENDER")
+      || this.config.get<string>("EMAIL_FROM")
+      || "no-reply@nanoproof.dev";
+    const senderName = this.config.get<string>("OTP_SENDER_NAME")
+      || this.config.get<string>("EMAIL_FROM_NAME")
+      || "NanoProof Protocol";
 
     if (provider === "demo") {
       return { provider: "demo", sender, senderName };
     }
 
-    const apiKey = this.config.get<string>("OTP_API_KEY");
+    // Aliases: RESEND_API_KEY → OTP_API_KEY for the resend provider
+    const apiKey = this.config.get<string>("OTP_API_KEY")
+      || this.config.get<string>("RESEND_API_KEY")
+      || this.config.get<string>("SENDGRID_API_KEY")
+      || this.config.get<string>("MAILGUN_API_KEY")
+      || this.config.get<string>("POSTMARK_API_TOKEN");
     const apiSecret = this.config.get<string>("OTP_API_SECRET");
     const apiUrl = this.config.get<string>("OTP_API_URL");
 
     if (!apiKey) {
       this.logger.warn(
-        `AUTH_PROVIDER=${provider} but OTP_API_KEY is missing — falling back to demo mode.`,
+        `AUTH_PROVIDER=${provider} but no API key is set. ` +
+        `Set RESEND_API_KEY (or OTP_API_KEY) on the Railway service.`,
       );
       return { provider: "demo", sender, senderName };
     }
