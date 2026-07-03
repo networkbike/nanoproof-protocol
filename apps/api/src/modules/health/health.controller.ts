@@ -187,6 +187,60 @@ export class HealthController {
     }
   }
 
+  /**
+   * Mark all migrations as applied (resets the migration history drift).
+   * This is needed when the database has _prisma_migrations entries but
+   * the actual tables are missing (e.g. restored from a partial backup).
+   */
+  @Public()
+  @Get("debug/resolve-applied")
+  async debugResolveApplied(): Promise<{ output: string; exitCode: number }> {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const exec = promisify(execFile);
+    try {
+      const { stdout, stderr } = await exec(
+        "npx",
+        ["prisma", "migrate", "resolve", "--applied", "20260701000001_phase2_creator_registry", "20260701100000_phase3_citation_engine_thinslice"],
+        { cwd: process.cwd(), timeout: 60_000, env: process.env as Record<string, string> },
+      );
+      return { output: (stdout + (stderr || "")).slice(-4000), exitCode: 0 };
+    } catch (err) {
+      const e = err as { stdout?: string; stderr?: string; code?: number };
+      return {
+        output: ((e.stdout || "") + (e.stderr || "")).slice(-4000),
+        exitCode: typeof e.code === "number" ? e.code : 1,
+      };
+    }
+  }
+
+  /**
+   * Force the schema to be in sync by running prisma db push.
+   * Unlike migrate deploy, this ignores migration history and
+   * directly applies the schema to the database.
+   */
+  @Public()
+  @Get("debug/db-push")
+  async debugDbPush(): Promise<{ output: string; exitCode: number }> {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const exec = promisify(execFile);
+    try {
+      const { stdout, stderr } = await exec(
+        "npx",
+        ["prisma", "db", "push", "--skip-generate", "--accept-data-loss", "--schema=prisma/schema.prisma"],
+        { cwd: process.cwd(), timeout: 120_000, env: process.env as Record<string, string> },
+      );
+      return { output: (stdout + (stderr || "")).slice(-4000), exitCode: 0 };
+    } catch (err) {
+      const e = err as { stdout?: string; stderr?: string; code?: number };
+      return {
+        output: ((e.stdout || "") + (e.stderr || "")).slice(-4000),
+        exitCode: typeof e.code === "number" ? e.code : 1,
+      };
+    }
+  }
+
   // ---------------------------------------------------------------------------
 
   private async fullHealth(): Promise<HealthResponse> {
@@ -206,3 +260,4 @@ export class HealthController {
     };
   }
 }
+
