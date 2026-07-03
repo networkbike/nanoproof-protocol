@@ -225,19 +225,12 @@ export class X402Controller {
   }
 
   @Public()
-  @Get("payments/:id")
-  @ApiOperation({ summary: "Get a Payment + its SettlementProof + VerificationEvents", operationId: "getPayment" })
-  async getPayment(@Param("id") id: string) {
-    const result = await this.x402.getPayment(id);
-    if (!result) return { found: false, paymentId: id };
-    return {
-      found: true,
-      payment: result.payment,
-      request: result.request,
-      proof: result.proof,
-      events: result.events,
-    };
+  @Get("payments/history")
+  @ApiOperation({ summary: "List recent payments (optionally filtered)", operationId: "paymentHistory" })
+  async history(@Query(new ZodValidationPipe(HistorySchema)) q: z.infer<typeof HistorySchema>) {
+    return this.x402.getPaymentHistory(q);
   }
+
 
   @Public()
   @Get("payments/proof/:id")
@@ -253,12 +246,22 @@ export class X402Controller {
     };
   }
 
+
   @Public()
-  @Get("payments/history")
-  @ApiOperation({ summary: "List recent payments (optionally filtered)", operationId: "paymentHistory" })
-  async history(@Query(new ZodValidationPipe(HistorySchema)) q: z.infer<typeof HistorySchema>) {
-    return this.x402.getPaymentHistory(q);
+  @Get("payments/:id")
+  @ApiOperation({ summary: "Get a Payment + its SettlementProof + VerificationEvents", operationId: "getPayment" })
+  async getPayment(@Param("id") id: string) {
+    const result = await this.x402.getPayment(id);
+    if (!result) return { found: false, paymentId: id };
+    return {
+      found: true,
+      payment: result.payment,
+      request: result.request,
+      proof: result.proof,
+      events: result.events,
+    };
   }
+
 
   @Public()
   @Get("creators/:id/revenue")
