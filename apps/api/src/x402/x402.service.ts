@@ -813,18 +813,22 @@ export class X402Service {
     if (updates.lastSettlementAt) data.lastSettlementAt = updates.lastSettlementAt;
     if (updates.lastVerifiedAt) data.lastVerifiedAt = updates.lastVerifiedAt;
 
-    // Strip StringFieldUpdateOperationsInput wrappers from create path
-    const createData: any = { id: "protocol_metrics_singleton" };
+    // Create block requires raw values; update block uses operators.
+    const createData: Record<string, unknown> = { id: "protocol_metrics_singleton" };
     for (const [k, v] of Object.entries(data)) {
-      if (v && typeof v === "object" && "set" in v) {
-        createData[k] = (v as { set: unknown }).set;
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        const op = v as Record<string, unknown>;
+        if ("set" in op) createData[k] = op.set;
+        else if ("increment" in op) createData[k] = op.increment;
+        else if ("decrement" in op) createData[k] = op.decrement;
+        else createData[k] = v;
       } else {
         createData[k] = v;
       }
     }
     await tx.protocolMetrics.upsert({
       where: { id: "protocol_metrics_singleton" },
-      create: createData,
+      create: createData as Prisma.ProtocolMetricsCreateInput,
       update: data,
     });
   }
