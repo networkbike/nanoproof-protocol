@@ -8,6 +8,13 @@
 # =============================================================================
 
 FROM node:22-bookworm-slim AS base
+# Enable bash with pipefail so that any RUN command using pipes (e.g.
+# `... | tail -N`) fails the step when ANY command in the pipeline
+# fails, not just the last one. Without this, a failed `pnpm install`
+# or `next build` would still exit 0 (from `tail`) and Docker would
+# think the build succeeded — leaving us with a broken .next/ and no
+# BUILD_ID file. node:22-bookworm-slim already includes bash.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
