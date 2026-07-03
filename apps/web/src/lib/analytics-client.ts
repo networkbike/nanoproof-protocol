@@ -36,16 +36,18 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const h = await headers();
   const cookie = h.get("cookie") ?? "";
-  const headers: Record<string, string> = {
+  // Use a non-shadowing name for the local header map so the imported
+  // Next.js `headers()` function remains callable below.
+  const requestHeaders: Record<string, string> = {
     "content-type": "application/json",
     cookie,
   };
   if (INTERNAL_API_KEY) {
-    headers["authorization"] = `Bearer ${INTERNAL_API_KEY}`;
+    requestHeaders["authorization"] = `Bearer ${INTERNAL_API_KEY}`;
   }
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { ...headers, ...(init?.headers ?? {}) },
+    headers: { ...requestHeaders, ...(init?.headers ?? {}) },
     cache: "no-store",
   });
   if (!res.ok) {
