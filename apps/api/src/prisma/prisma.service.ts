@@ -31,13 +31,33 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit(): Promise<void> {
-    // Lazy-connect: don't await. The first DB query will trigger the actual
-    // connection. This way, even if the Postgres host is briefly unreachable
-    // at startup, the HTTP server still binds to its port and /health responds.
-    // We log the connection result for observability but don't block startup.
+    // At startup, run prisma migrate deploy via the Prisma migrate
+    // engine. This ensures the schema is always in sync with the
+    // migrations directory. If migration fails, throw so the api
+    // fails to start (Railway will mark the deploy as failed with
+    // the actual error in the deploy log).
+    const { default: prismaMigrate } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const execFile = promisify((await import("node:child_process")).execFile);
+    try {
+      this.logger.log("Running prisma migrate deploy...");
+      const { stdout, stderr } = await execFile(
+        "npx",
+        ["prisma", "migrate", "deploy"],
+        { cwd: process.cwd(), timeout: 120_000 },
+      );
+      this.logger.log(`prisma migrate deploy: ${stdout || "ok"}`);
+    } catch (err) {
+      const e = err as { stdout?: string; stderr?: string; message?: string };
+      const out = (e.stdout || "") + (e.stderr || "");
+      this.logger.error(`prisma migrate deploy FAILED: ${out || e.message}`);
+      throw new Error(`Database migration failed: ${out || e.message}`);
+    }
+
+    // After migration, lazy-connect for runtime queries
     this.$connect()
       .then(() => this.logger.log("Prisma connected (pg adapter)"))
-      .catch((err) => this.logger.error(`Prisma initial connect failed (will retry on first query): ${err.message}`));
+      .catch((err) => this.logger.error(`Prisma initial connect failed: ${err.message}`));
   }
 
   async onModuleDestroy(): Promise<void> {
