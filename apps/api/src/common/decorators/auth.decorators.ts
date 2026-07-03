@@ -151,3 +151,15 @@ export class ApiKeyGuard implements CanActivate {
 function anonymous(): Principal {
   return { kind: "anonymous", id: "", apiKeyId: "", scopes: [], rateLimitPerMinute: 60 };
 }
+
+
+/**
+ * DebugOnly — only enables the route when NANOPROOF_DEBUG_ENDPOINTS=true.
+ * Use on /debug/* endpoints to ensure they're never exposed in production.
+ *
+ *   @DebugOnly()
+ *   @Get("debug/tables")
+ *   async debugTables() { ... }
+ */
+export const DEBUG_ENDPOINTS_KEY = "debug:endpoints";
+export const DebugOnly = () => SetMetadata(DEBUG_ENDPOINTS_KEY, true);

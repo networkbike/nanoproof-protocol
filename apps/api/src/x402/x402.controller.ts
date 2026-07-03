@@ -284,6 +284,12 @@ export class X402Controller {
   @Get("supporters")
   @ApiOperation({ summary: "Get recent supporters (payer wallets)", operationId: "recentSupporters" })
   async supporters(@Query("limit") limit?: string) {
+    if (limit !== undefined) {
+      const n = parseInt(limit, 10);
+      if (Number.isNaN(n) || n < 1 || n > 100) {
+        throw new Error("limit must be an integer between 1 and 100");
+      }
+    }
     const n = limit ? Math.min(parseInt(limit, 10) || 20, 100) : 20;
     return this.x402.getRecentSupporters(n);
   }

@@ -285,9 +285,10 @@ export class X402Service {
     verification: Promise<{ status: "VERIFIED" | "PENDING" | "FAILED" }>;
     response: X402PaymentResponse;
   }> {
+    // Lightweight fetch — we only need the PaymentRequest fields. The
+    // creator relation is unused; we already have creatorId via req.creatorId.
     const req = await this.prisma.paymentRequest.findUnique({
       where: { id: input.requestId },
-      include: { creator: { include: { paymentRequests: { orderBy: { createdAt: "desc" }, take: 1 } } } },
     });
     if (!req) {
       throw new NPError("NP_NOT_FOUND", { message: `PaymentRequest ${input.requestId} not found` });
@@ -711,12 +712,32 @@ export class X402Service {
     lastVerifiedAt: Date | null;
     updatedAt: Date;
   }> {
-    // Ensure singleton exists
-    const m = await this.prisma.protocolMetrics.upsert({
+    // Use findUnique; the row is guaranteed to exist because bumpMetrics()
+    // is called on every settlement. No write on the read path.
+    const m = await this.prisma.protocolMetrics.findUnique({
       where: { id: "protocol_metrics_singleton" },
-      create: { id: "protocol_metrics_singleton" },
-      update: {},
     });
+    if (!m) {
+      // First-ever call (cold boot, no settlements yet) — return zero stats
+      // without writing to the DB. The singleton will be materialised the
+      // first time bumpMetrics() runs (i.e. on the first settlement).
+      return {
+        totalPayments: 0,
+        totalSettlements: 0,
+        totalVerifications: 0,
+        totalVerified: 0,
+        totalFailed: 0,
+        totalUsdcDistributed: "0",
+        totalUsdcDisplay: "0",
+        uniqueSupporters: 0,
+        uniqueCreators: 0,
+        x402ChallengesServed: 0,
+        x402PaymentsSettled: 0,
+        lastSettlementAt: null,
+        lastVerifiedAt: null,
+        updatedAt: new Date(),
+      };
+    }
 
     // Augment with live counts (cheaper than scanning full tables every read)
     const [supporters, creators] = await Promise.all([

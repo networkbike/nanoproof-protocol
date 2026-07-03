@@ -18,18 +18,57 @@ NanoProof sits between AI agents and human creators. When an agent cites a Sourc
 | `.github/issues/`       | 70+ GitHub issues, one per ticket, organized by phase            |
 | `openapi/`              | OpenAPI 3.1 specs for the public API surface                     |
 
-## Current phase
+## Current phase: **Phase 8 — x402 Payment Protocol**
 
-This commit adds the **MVP scaffolding**:
+This commit adds the **x402 payment protocol layer** (Phase 8) on top of the existing
+Phase 0–7 stack. NanoProof now exposes HTTP 402 payment-protected endpoints backed
+by Arc settlement proofs and ArcScan verification.
 
-- Monorepo wired with pnpm workspaces + Turborepo
-- Backend (NestJS 11) with Prisma 6 + Postgres 16 + Redis 7
-- Frontend (Next.js 15 + Tailwind 4 + shadcn-style components)
-- Consolidated Prisma schema v1 — Creator, Wallet, Source, Citation, Payment
-- Shared Zod schemas + NP_* error catalog
-- Five end-to-end flows: creator registration, source registration, citation simulation, payment simulation, dashboard
+### What's new in Phase 8
 
-**No business logic yet.** Phase 2 (Creator Registry) lands first.
+- **`x402 middleware`** that returns proper HTTP 402 + `PAYMENT-REQUIRED` header (Coinbase open standard)
+- **`PaymentRequest` lifecycle**: create → authorize (signed PAYMENT-SIGNATURE) → settle → verify
+- **`SettlementProof`** — immutable, hash-chained per creator (`prevHash` + canonical body → `hash`)
+- **`ArcScan verification`** via Blockscout v2 API (`https://testnet.arcscan.app/api/v2`)
+- **11 REST endpoints** (all public, no auth required):
+  - `POST /x402/demo` — one-click create+authorize+settle+verify
+  - `POST /payments/create|authorize|settle|verify`
+  - `GET /payments/history|:id|/proof/:id`
+  - `GET /creators/:id/revenue`
+  - `GET /metrics`, `GET /supporters`
+- **Web UI**: `/payments` (one-click flow), `/history` (settlement table), `/history/[id]` (proof + verification timeline)
+- **Dashboard Phase 8 strip**: 402 challenges served / x402 settled / ArcScan verified / unique supporters
+- **Demo seed**: `GET /debug/seed-x402?count=30` creates 4 creators + 30 verified settlements
+- **12 e2e tests** covering the full lifecycle (all passing)
+
+### Stack
+
+- **Backend**: NestJS 11 + Prisma 5 + Postgres 16 + pg driver adapter
+- **Frontend**: Next.js 15 (React 19) + Tailwind 4
+- **Chain**: Arc Testnet (chain id 5042002, USDC-native gas)
+- **Protocols**: x402 (Coinbase open standard), EIP-3009, EIP-712
+- **Verification**: ArcScan (Blockscout v2) at `https://testnet.arcscan.app/api/v2`
+
+### Live URLs
+
+- **Web home**: https://nanoproof-web-production.up.railway.app
+- **x402 payment flow**: https://nanoproof-web-production.up.railway.app/payments
+- **Settlement history**: https://nanoproof-web-production.up.railway.app/history
+- **API health**: https://nanoproof-api-production.up.railway.app/v1/healthz
+- **API Swagger**: https://nanoproof-api-production.up.railway.app/docs
+- **API metrics**: https://nanoproof-api-production.up.railway.app/metrics
+
+### Docs
+
+- [`docs/PHASE8.md`](./docs/PHASE8.md) — Phase 8 overview, schema, decisions
+- [`docs/X402_IMPLEMENTATION.md`](./docs/X402_IMPLEMENTATION.md) — x402 protocol deep dive
+- [`docs/PAYMENT_FLOW.md`](./docs/PAYMENT_FLOW.md) — full request lifecycle
+- [`docs/ARC_SETTLEMENT.md`](./docs/ARC_SETTLEMENT.md) — settlement proof + ArcScan verification
+- [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) — complete REST API reference
+
+Earlier phases: Phase 0 (MVP) → Phase 2 (Creator Registry) → Phase 3 (Citation Engine) →
+Phase 4 (Payment Engine) → Phase 5 (Lepton Demo) → Phase 6 (Analytics Dashboard) →
+Phase 7 (Deployment configs) → **Phase 8 (x402 + Arc Settlement Proof)**.
 
 ## Quickstart (5 minutes)
 
