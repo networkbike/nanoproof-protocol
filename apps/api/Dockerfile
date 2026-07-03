@@ -85,8 +85,7 @@ HEALTHCHECK NONE
 # Migrations run at container start (DATABASE_URL injected as env var by Fly).
 # Falls back to lazy Prisma init on first DB query if migrate fails.
 # Then the api starts.
-# Run prisma migrate deploy before starting the api. The migration
-# output is logged so the deploy log shows whether it succeeded.
-# If migrations fail, we still start the api (so the app can serve
-# healthz for debugging) but with a clear error in the log.
-CMD ["sh", "-c", "set +e; echo '=== prisma migrate deploy START ===' && npx prisma migrate deploy 2>&1 | tail -30; echo '=== prisma migrate deploy END (exit $?) ==='; npx prisma db push --skip-generate --accept-data-loss 2>&1 | tail -10; echo '=== starting api ==='; exec node dist/apps/api/src/main.js"]
+# Run prisma migrate deploy before starting the api. Migration output
+# is logged loud — if it fails the container will NOT start, so
+# Railway shows the real error in the deploy log.
+CMD ["sh", "-c", "echo '=== prisma migrate deploy START ===' && npx prisma migrate deploy 2>&1 && echo '=== prisma migrate deploy END (success) ===' && echo '=== starting api ===' && exec node dist/apps/api/src/main.js"]
