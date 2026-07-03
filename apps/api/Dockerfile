@@ -85,6 +85,9 @@ HEALTHCHECK NONE
 # Migrations run at container start (DATABASE_URL injected as env var by Fly).
 # Falls back to lazy Prisma init on first DB query if migrate fails.
 # Then the api starts.
-# Run prisma db push before starting the api. db push is more forgiving
-# than migrate deploy (doesn't need migration history). Falls back gracefully.
-CMD ["sh", "-c", "echo '=== syncing prisma schema ===' && (npx prisma db push --skip-generate --accept-data-loss 2>&1 || echo 'schema sync failed, continuing') && echo '=== starting api ===' && node dist/apps/api/src/main.js"]
+# Run prisma migrate deploy before starting the api. migrate deploy
+# is the canonical production migration tool — it applies any pending
+# migrations from the prisma/migrations/ directory. If it fails, we
+# log the error AND fail the container so Railway shows the error
+# (no silent fallback that leaves the api with missing tables).
+CMD ["sh", "-c", "echo '=== running prisma migrate deploy ===' && npx prisma migrate deploy 2>&1 | tail -20 && echo '=== starting api ===' && node dist/apps/api/src/main.js"]
