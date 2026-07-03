@@ -31,61 +31,64 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit(): Promise<void> {
-    // At startup, run prisma migrate deploy via the Prisma migrate
-    // engine. This ensures the schema is always in sync with the
-    // migrations directory. If migration fails, throw so the api
-    // fails to start (Railway will mark the deploy as failed with
-    // the actual error in the deploy log).
-    const { default: prismaMigrate } = await import("node:child_process");
-    const { promisify } = await import("node:util");
-    const execFile = promisify((await import("node:child_process")).execFile);
+    // Connect the Prisma client immediately. Railway healthcheck only hits
+    // /liveness (process-only), so we do NOT block startup on migrations
+    // or the initial DB connection — the connection will be established
+    // lazily on the first request and the migrate runs in the background.
+    this.logger.log("Prisma: starting connection (non-blocking)...");
+
+    // Fire-and-forget: run migrations in the background so a slow DB can't
+    // make the new build fail to come up. The migration is still important —
+    // we just don't want it to gate the healthcheck.
+    void this.runMigrationsInBackground();
+
+    // Connect in background too — runtime queries will trigger this lazily
+    // on first use anyway, but we trigger it eagerly so the first request
+    // doesn't pay the connect cost.
+    this.$connect()
+      .then(() => this.logger.log("Prisma connected (pg adapter)"))
+      .catch((err) => this.logger.error(`Prisma initial connect failed: ${err.message}`));
+  }
+
+  private async runMigrationsInBackground(): Promise<void> {
     try {
-      this.logger.log("Running prisma migrate deploy...");
-      const { stdout, stderr } = await execFile(
+      const { promisify } = await import("node:util");
+      const { execFile } = await import("node:child_process");
+      const exec = promisify(execFile);
+      this.logger.log("Prisma: running migrate deploy in background...");
+      const { stdout, stderr } = await exec(
         "npx",
         ["prisma", "migrate", "deploy"],
         { cwd: process.cwd(), timeout: 120_000 },
       );
-      this.logger.log(`prisma migrate deploy: ${stdout || "ok"}`);
+      this.logger.log(`Prisma migrate deploy: ${stdout || "ok"}`);
     } catch (err) {
       const e = err as { stdout?: string; stderr?: string; message?: string };
       const out = (e.stdout || "") + (e.stderr || "");
-      // "No pending migrations" is the migration-history-drift scenario:
-      // _prisma_migrations says done, but tables may be missing. Fall back
-      // to prisma db push to force the schema in sync. This is safe because
-      // it only creates missing objects (--accept-data-loss is required for
-      // the rare destructive case which we accept for demo/dev).
-      if (out.includes("No pending migrations") === false &&
-          out.includes("P3008") === false && out.includes("P3005") === false) {
-        this.logger.error(`prisma migrate deploy FAILED: ${out || e.message}`);
-        throw new Error(`Database migration failed: ${out || e.message}`);
-      }
-      this.logger.warn(
-        `prisma migrate deploy reported no-op (${out.trim()}). ` +
-        `Falling back to prisma db push to ensure schema is in sync.`,
-      );
-      const { execFile: ef2 } = await import("node:child_process");
-      const { promisify: p2 } = await import("node:util");
-      const exec2 = p2(ef2);
-      try {
-        const { stdout: so2, stderr: se2 } = await exec2(
-          "npx",
-          ["prisma", "db", "push", "--skip-generate", "--accept-data-loss", "--schema=prisma/schema.prisma"],
-          { cwd: process.cwd(), timeout: 120_000, env: process.env as Record<string, string> },
+      if (out.includes("No pending migrations") ||
+          out.includes("P3008") || out.includes("P3005")) {
+        this.logger.warn(
+          `prisma migrate deploy reported no-op. ` +
+          `Falling back to prisma db push to ensure schema is in sync.`,
         );
-        this.logger.log(`prisma db push (fallback): ${so2 || "ok"}`);
-      } catch (err2) {
-        const e2 = err2 as { stdout?: string; stderr?: string; message?: string };
-        const out2 = (e2.stdout || "") + (e2.stderr || "");
-        this.logger.error(`prisma db push FAILED: ${out2 || e2.message}`);
-        throw new Error(`Database db push failed: ${out2 || e2.message}`);
+        try {
+          const { promisify } = await import("node:util");
+          const { execFile } = await import("node:child_process");
+          const exec = promisify(execFile);
+          const { stdout: so2 } = await exec(
+            "npx",
+            ["prisma", "db", "push", "--skip-generate", "--accept-data-loss", "--schema=prisma/schema.prisma"],
+            { cwd: process.cwd(), timeout: 120_000, env: process.env as Record<string, string> },
+          );
+          this.logger.log(`Prisma db push (fallback): ${so2 || "ok"}`);
+        } catch (err2) {
+          const e2 = err2 as { stdout?: string; stderr?: string; message?: string };
+          this.logger.error(`Prisma db push FAILED: ${(e2.stdout || "") + (e2.stderr || "") || e2.message}`);
+        }
+      } else {
+        this.logger.error(`Prisma migrate deploy FAILED: ${out || (e as Error).message}`);
       }
     }
-
-    // After migration, lazy-connect for runtime queries
-    this.$connect()
-      .then(() => this.logger.log("Prisma connected (pg adapter)"))
-      .catch((err) => this.logger.error(`Prisma initial connect failed: ${err.message}`));
   }
 
   async onModuleDestroy(): Promise<void> {
