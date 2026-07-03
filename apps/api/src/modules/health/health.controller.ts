@@ -75,6 +75,55 @@ export class HealthController {
 
   // ---------------------------------------------------------------------------
 
+  /**
+   * TEMPORARY DEBUG ENDPOINT — list all tables in the public schema.
+   * Used to verify migrations actually ran. Will be removed once we
+   * confirm migrations are working.
+   */
+  @Public()
+  @Get("debug/tables")
+  async debugTables(): Promise<{ tables: string[]; count: number; error?: string }> {
+    try {
+      const rows = await this.prisma.$queryRaw<{ table_name: string }[]>`
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public'
+        ORDER BY table_name
+      `;
+      return { tables: rows.map((r) => r.table_name), count: rows.length };
+    } catch (err) {
+      return { tables: [], count: 0, error: (err as Error).message };
+    }
+  }
+
+  /**
+   * TEMPORARY DEBUG ENDPOINT — run prisma migrate deploy and report the result.
+   * This will fail loudly if migration fails, surfacing the real error.
+   */
+  @Public()
+  @Get("debug/migrate")
+  async debugMigrate(): Promise<{ output: string; exitCode: number }> {
+    // Use child_process to run prisma migrate deploy from the api's
+    // prisma directory. This is the same command the Dockerfile runs.
+    const { exec } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const execAsync = promisify(exec);
+    try {
+      const { stdout, stderr } = await execAsync(
+        "npx prisma migrate deploy 2>&1",
+        { cwd: process.cwd(), timeout: 60_000 },
+      );
+      return { output: stdout + (stderr || ""), exitCode: 0 };
+    } catch (err) {
+      const e = err as { stdout?: string; stderr?: string; code?: number };
+      return {
+        output: (e.stdout || "") + (e.stderr || ""),
+        exitCode: typeof e.code === "number" ? e.code : 1,
+      };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+
   private async fullHealth(): Promise<HealthResponse> {
     const checks: Record<string, string> = { process: "ok" };
     try {
