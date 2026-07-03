@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from "@nestjs/common";
 import { OtpService } from "./otp.service";
-import { Public } from "../common/decorators/auth.decorators.js";
+import { Public } from "../common/decorators/index.js";
 
 interface OtpSendDto {
   email: string;
