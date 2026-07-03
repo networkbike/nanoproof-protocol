@@ -112,6 +112,17 @@ export default async function DashboardOverviewPage() {
             accent="fuchsia"
           />
         </div>
+        {x402Metrics?.lastSettlementAt && (
+          <div className="mt-3 pt-3 border-t border-indigo-500/20 text-xs text-slate-400 flex items-center gap-2">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Last settlement: {new Date(x402Metrics.lastSettlementAt).toLocaleString()}
+            {x402Metrics.lastVerifiedAt && (
+              <span className="text-slate-500">
+                · last verified {new Date(x402Metrics.lastVerifiedAt).toLocaleString()}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Story strip: the NanoProof flow Creator → Citation → Attribution → Payment → Settlement */}
