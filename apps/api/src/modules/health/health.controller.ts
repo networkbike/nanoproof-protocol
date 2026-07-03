@@ -349,5 +349,42 @@ export class HealthController {
       metrics,
     };
   }
+
+  /** TEMPORARY: try a single x402 settlement and return any error. */
+  @Public()
+  @Get("debug/settle-once")
+  async debugSettleOnce(): Promise<unknown> {
+    const { X402Service } = await import("../../x402/x402.service.js");
+    const { ArcScanVerifierService } = await import("../../x402/arcscan-verifier.service.js");
+    const arcscan = new ArcScanVerifierService();
+    const x402 = new X402Service(this.prisma, arcscan);
+
+    try {
+      const { request, challenge } = await x402.createPaymentRequest({
+        creatorId: "cr_demo_alice",
+        resource: "/v1/research/cite",
+        amountUsdc: "1000",
+        payerAddress: "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+      });
+      const result = await x402.settlePayment({
+        requestId: request.id,
+        payerAddress: "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+      });
+      return {
+        ok: true,
+        challengeAccepts: challenge.accepts.length,
+        paymentId: result.payment.id,
+        txHash: result.payment.txHash,
+        proofId: result.proof.id,
+        verificationStatus: result.proof.verificationStatus,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        error: (err as Error).message,
+        stack: (err as Error).stack ? (err as Error).stack!.split(String.fromCharCode(10)).slice(0, 5) : null,
+      };
+    }
+  }
 }
 
