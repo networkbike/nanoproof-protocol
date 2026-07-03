@@ -316,8 +316,22 @@ export default function PaymentsPage(): React.ReactElement {
               {demoResult ? (
                 <SettlementTimeline demo={demoResult} creator={currentCreator} />
               ) : (
-                <div className="text-sm text-slate-500 italic">
-                  No settlement yet. Run the x402 flow to see proof + verification.
+                <div className="rounded-lg border border-dashed border-slate-700 bg-slate-950/50 p-6 text-center space-y-3">
+                  <div className="mx-auto h-10 w-10 rounded-full bg-indigo-500/10 text-indigo-300 flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-slate-200">No settlement yet</p>
+                    <p className="text-xs text-slate-400">
+                      Click <span className="text-indigo-300">▶ Start x402 flow</span> on the left to run a complete
+                      402 challenge → EIP-3009 sign → Arc settlement → ArcScan verification.
+                    </p>
+                    <p className="text-xs text-slate-500 italic pt-1">
+                      Typical demo time: 5–10 seconds.
+                    </p>
+                  </div>
                 </div>
               )}
             </CardContent>

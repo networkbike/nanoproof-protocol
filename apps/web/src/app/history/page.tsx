@@ -91,14 +91,31 @@ export default function HistoryPage(): React.ReactElement {
             </CardHeader>
             <CardContent>
               {loading && payments.length === 0 ? (
-                <div className="text-sm text-slate-500 italic">Loading…</div>
+                <div className="flex items-center justify-center py-12 text-slate-500">
+                  <svg className="animate-spin mr-2 h-4 w-4" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                    <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
+                  </svg>
+                  Loading settlements…
+                </div>
               ) : payments.length === 0 ? (
-                <div className="text-sm text-slate-500 italic">
-                  No settlements yet. Run the x402 flow on the{" "}
-                  <Link href="/payments" className="text-amber-300 hover:underline">
-                    payments page
-                  </Link>{" "}
-                  to create one.
+                <div className="rounded-lg border border-dashed border-slate-700 bg-slate-950/50 p-8 text-center space-y-3">
+                  <div className="mx-auto h-10 w-10 rounded-full bg-amber-500/10 text-amber-300 flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 6v6l4 2" />
+                    </svg>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-slate-200">No settlements yet</p>
+                    <p className="text-xs text-slate-400">
+                      Run the x402 flow on the{" "}
+                      <Link href="/payments" className="text-amber-300 hover:underline">
+                        payments page
+                      </Link>{" "}
+                      to create your first one.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
