@@ -1,10 +1,17 @@
 # NanoProof Protocol
 
-> Open infrastructure for autonomous creator compensation. AI agents automatically pay creators USDC whenever their work is cited.
+> **Open infrastructure for autonomous creator compensation.**
+> AI agents automatically pay creators USDC whenever their work is cited.
+>
+> **Phase 8 LIVE** — x402 payment protocol + Arc settlement proof + ArcScan verification.
 
-[![Status](https://img.shields.io/badge/status-mvp-blue)](./ROADMAP.md) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A520.18.2-339933)](https://nodejs.org/) [![pnpm](https://img.shields.io/badge/pnpm-9-F69220)](https://pnpm.io/)
+[![Version](https://img.shields.io/badge/version-1.0.0--rc.1-blue)](./CHANGELOG.md) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE) [![Node](https://img.shields.io/badge/node-%E2%89%A522-339933)](https://nodejs.org/) [![pnpm](https://img.shields.io/badge/pnpm-9-F69220)](https://pnpm.io/)
 
-NanoProof sits between AI agents and human creators. When an agent cites a Source, NanoProof detects the citation, attributes it to the right Creator, and settles a USDC nanopayment on **Arc** via Circle Gateway + x402.
+NanoProof sits between AI agents and human creators. When an agent cites a Source, NanoProof detects the citation, attributes it to the right Creator, and settles a USDC nanopayment on **Arc** via **x402** (Coinbase's open HTTP 402 standard). Every settlement produces an **immutable, hash-chained SettlementProof** that's verified on **ArcScan** (Blockscout v2).
+
+**Live demo** (no auth, no install): **[nanoproof-web-production.up.railway.app](https://nanoproof-web-production.up.railway.app)**
+
+**60-second judge walkthrough**: [docs/JUDGE_GUIDE.md](./docs/JUDGE_GUIDE.md)
 
 ## What's in this repo
 
@@ -18,7 +25,27 @@ NanoProof sits between AI agents and human creators. When an agent cites a Sourc
 | `.github/issues/`       | 70+ GitHub issues, one per ticket, organized by phase            |
 | `openapi/`              | OpenAPI 3.1 specs for the public API surface                     |
 
-## Current phase: **Phase 8 — x402 Payment Protocol**
+## Status: **v1.0.0-rc.1 — Release Candidate** 🎯
+
+All 8 development phases shipped. Project is in **Release Candidate mode** —
+only functional testing, demo testing, bug fixes, performance improvements, and
+submission materials from here on.
+
+**Production audit**: 78 / 100 (live) → 88 / 100 (post-deploy). See [`docs/PHASE8_AUDIT.md`](./docs/PHASE8_AUDIT.md).
+
+**Lepton submission**: [`docs/SUBMISSION.md`](./docs/SUBMISSION.md).
+
+**60-second judge demo**: [`docs/JUDGE_GUIDE.md`](./docs/JUDGE_GUIDE.md).
+
+**Live URLs (public, no auth)**:
+- Web: https://nanoproof-web-production.up.railway.app
+- API: https://nanoproof-api-production.up.railway.app
+- Health: https://nanoproof-api-production.up.railway.app/v1/healthz
+- Swagger: https://nanoproof-api-production.up.railway.app/api
+
+---
+
+## Current phase: **Phase 8 — x402 Payment Protocol** (SHIPPED)
 
 This commit adds the **x402 payment protocol layer** (Phase 8) on top of the existing
 Phase 0–7 stack. NanoProof now exposes HTTP 402 payment-protected endpoints backed
