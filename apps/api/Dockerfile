@@ -85,7 +85,8 @@ HEALTHCHECK NONE
 # Migrations run at container start (DATABASE_URL injected as env var by Fly).
 # Falls back to lazy Prisma init on first DB query if migrate fails.
 # Then the api starts.
-# Run prisma migrate deploy before starting the api. Migration output
-# is logged loud — if it fails the container will NOT start, so
-# Railway shows the real error in the deploy log.
-CMD ["sh", "-c", "echo '=== prisma migrate deploy START ===' && npx prisma migrate deploy 2>&1 && echo '=== prisma migrate deploy END (success) ===' && echo '=== starting api ===' && exec node dist/apps/api/src/main.js"]
+# Migration runs in code (prisma.service.ts onModuleInit) so we get
+# full NestJS logging and proper error reporting. If the migration
+# fails, the api throws and the container fails to start, surfacing
+# the real error in Railway's deploy log.
+CMD ["sh", "-c", "echo '=== starting api (migration runs in onModuleInit) ===' && exec node dist/apps/api/src/main.js"]
