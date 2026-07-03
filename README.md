@@ -125,4 +125,4 @@ MIT — see [`LICENSE`](./LICENSE).
 
 ---
 
-Built for the Lepton Hackathon (Canteen × Circle × Arc).
+Built for the Lepton Hackathon (Canteen × Circle × Arc).<!-- trigger: Fri Jul  3 12:55:52 UTC 2026 -->
