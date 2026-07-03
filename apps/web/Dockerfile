@@ -41,11 +41,15 @@ COPY packages/agent/ ./packages/agent/
 COPY apps/web/ ./apps/web/
 COPY tsconfig.base.json ./
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter @nanoproof/shared build 2>&1 | tail -10
-RUN pnpm --filter @nanoproof/agent build 2>&1 | tail -10
-RUN pnpm --filter @nanoproof/web build 2>&1 | tail -10
+RUN pnpm --filter @nanoproof/shared build 2>&1 | tail -20
+RUN echo "--- shared built, now building agent ---" && \
+    pnpm --filter @nanoproof/agent build 2>&1 | tail -20
+RUN echo "--- agent built, now building web ---" && \
+    pnpm --filter @nanoproof/web build 2>&1 | tail -30
 RUN echo "=== STEP 2 DONE: web built ===" && \
-    echo ".next size: $(du -sh /repo/apps/web/.next 2>/dev/null || echo 'MISSING')"
+    echo ".next size: $(du -sh /repo/apps/web/.next 2>/dev/null || echo 'MISSING')" && \
+    echo ".next contents: $(ls /repo/apps/web/.next 2>/dev/null | head -5 || echo 'EMPTY')" && \
+    echo "BUILD_ID: $(cat /repo/apps/web/.next/BUILD_ID 2>/dev/null || echo 'MISSING')"
 
 # -----------------------------------------------------------------------------
 # Step 3: runtime — minimal image with just node + the built web
@@ -70,12 +74,14 @@ COPY --from=build /repo/node_modules /app/node_modules
 # Copy packages (workspace deps for the web)
 COPY --from=build /repo/packages /app/packages
 
-# Verify everything is in place at build time
+# Verify everything is in place at build time. Fail loud if missing.
 RUN echo "=== runtime verification ===" && \
     echo "node_modules: $(ls /app/node_modules 2>/dev/null | wc -l) packages" && \
     echo "apps/web: $(ls /app/apps/web 2>/dev/null | wc -l) files" && \
     echo ".next: $(test -d /app/apps/web/.next && echo present || echo MISSING)" && \
-    echo "BUILD_ID: $(cat /app/apps/web/.next/BUILD_ID 2>/dev/null || echo MISSING)"
+    echo "BUILD_ID: $(cat /app/apps/web/.next/BUILD_ID 2>/dev/null || echo MISSING)" && \
+    echo "next bin: $(test -x /app/node_modules/.bin/next && echo present || echo MISSING)" && \
+    test -f /app/apps/web/.next/BUILD_ID || (echo "FATAL: BUILD_ID missing" && exit 1)
 
 WORKDIR /app/apps/web
 
