@@ -1,6 +1,6 @@
 {
   "name": "@nanoproof/api",
-  "version": "0.1.0",
+  "version": "1.0.0-rc.1",
   "private": true,
   "description": "NanoProof REST API (NestJS) — Phase 2 MVP.",
   "license": "MIT",
