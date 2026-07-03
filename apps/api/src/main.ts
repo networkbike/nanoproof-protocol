@@ -81,3 +81,4 @@ bootstrap().catch((err) => {
   console.error("Fatal bootstrap error:", err);
   process.exit(1);
 });
+/* rebuild trigger Fri Jul  3 16:20:49 UTC 2026 */
