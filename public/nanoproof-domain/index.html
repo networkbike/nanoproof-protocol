@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NanoProof — Domain Verification</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      max-width: 540px;
+      width: 100%;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 40px 32px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 10px 40px rgba(99,102,241,0.08);
+    }
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .logo-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 16px;
+    }
+    .logo-text {
+      font-weight: 700;
+      color: #0f172a;
+      font-size: 18px;
+    }
+    h1 {
+      font-size: 28px;
+      color: #0f172a;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      color: #475569;
+      font-size: 16px;
+      line-height: 1.55;
+      margin-bottom: 24px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: #ecfdf5;
+      color: #047857;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+    .pill::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+    a.button {
+      display: inline-block;
+      padding: 12px 22px;
+      background: #0f172a;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 15px;
+      margin-top: 8px;
+    }
+    a.button:hover {
+      background: #1e293b;
+    }
+    .footer {
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="logo">
+      <div class="logo-mark">N</div>
+      <div class="logo-text">NanoProof Protocol</div>
+    </div>
+
+    <span class="pill">Domain verified</span>
+
+    <h1>NanoProof is live.</h1>
+    <p class="sub">
+      This subdomain is part of the NanoProof Protocol infrastructure
+      for the Lepton Hackathon. It is used as the verified sending
+      domain for passwordless Email OTP authentication.
+    </p>
+
+    <a class="button" href="https://nanoproof-web-production.up.railway.app/landing">
+      Open NanoProof →
+    </a>
+
+    <div class="footer">
+      Lepton Hackathon · Canteen × Circle × Arc · MIT licensed
+    </div>
+  </main>
+</body>
+</html>

@@ -51,34 +51,6 @@ export default function SignInPage() {
     }
   }
 
-  async function signInAsDemoJudge() {
-    setError(null);
-    setErrorHint(null);
-    setLoading(true);
-    try {
-      const r = await fetch("/api/auth/demo-signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "creator", name: "Demo Judge" }),
-      });
-      const d = await r.json();
-      if (!r.ok || !d.ok) {
-        setError(d.error || "Demo sign-in failed");
-        return;
-      }
-      localStorage.setItem("nanoproof-session", JSON.stringify(d.session));
-      localStorage.setItem("nanoproof-role", d.session.role || "creator");
-      setStep("redirect");
-      setTimeout(() => {
-        router.push(d.session.role === "supporter" ? "/supporter" : "/creator");
-      }, 600);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Demo sign-in failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function sendOtp(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -217,7 +189,6 @@ export default function SignInPage() {
               email={email}
               setEmail={setEmail}
               onSubmit={sendOtp}
-              onDemoSignIn={signInAsDemoJudge}
               loading={loading}
               error={error}
               errorHint={errorHint}
@@ -262,7 +233,6 @@ function EmailStep({
   email,
   setEmail,
   onSubmit,
-  onDemoSignIn,
   loading,
   error,
   errorHint,
@@ -271,7 +241,6 @@ function EmailStep({
   email: string;
   setEmail: (s: string) => void;
   onSubmit: (e: React.FormEvent) => void;
-  onDemoSignIn: () => void;
   loading: boolean;
   error: string | null;
   errorHint: string | null;
@@ -321,23 +290,6 @@ function EmailStep({
       </button>
       <p className="mt-4 text-center text-xs text-slate-500">
         By signing in you agree to receive an authentication code by email.
-      </p>
-
-      <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wider text-slate-400">
-        <div className="h-px flex-1 bg-slate-200" />
-        or
-        <div className="h-px flex-1 bg-slate-200" />
-      </div>
-
-      <button
-        type="button"
-        onClick={onDemoSignIn}
-        className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100"
-      >
-        ⚡ Sign in as Demo Judge
-      </button>
-      <p className="mt-2 text-center text-xs text-slate-500">
-        One-click sign-in for the Lepton hackathon demo. No email required.
       </p>
     </form>
   );
