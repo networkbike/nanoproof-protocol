@@ -21,7 +21,7 @@ export default async function DashboardOverviewPage() {
   const [overview, citationTs, payments, topSources] = await Promise.all([
     analytics.overview(),
     analytics.citationTimeline("30d"),
-    analytics.payments({ limit: 0 }), // for status breakdown only
+    analytics.payments({ limit: 1 }), // for status breakdown only (Zod min(1))
     analytics.topSources(5),
   ]);
 

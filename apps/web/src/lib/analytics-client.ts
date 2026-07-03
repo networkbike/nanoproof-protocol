@@ -57,29 +57,43 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Clamp `limit` to the api's accepted range (1..200). Without this, callers
+// passing 0 or undefined would crash the server with a 500.
+function safeLimit(n: number | undefined): number {
+  if (typeof n !== "number" || !Number.isFinite(n) || n < 1) return 1;
+  if (n > 200) return 200;
+  return Math.floor(n);
+}
+
 export const analytics = {
   overview: () => fetchJSON<OverviewKpi>("/v1/analytics/overview"),
-  creators: (limit = 50) => fetchJSON<CreatorListResponse>(`/v1/analytics/creators?limit=${limit}`),
-  topCreators: (limit = 10) => fetchJSON<TopCreator[]>(`/v1/analytics/top-creators?limit=${limit}`),
+  creators: (limit = 50) => fetchJSON<CreatorListResponse>(`/v1/analytics/creators?limit=${safeLimit(limit)}`),
+  topCreators: (limit = 10) => fetchJSON<TopCreator[]>(`/v1/analytics/top-creators?limit=${safeLimit(limit)}`),
   creator: (id: string) => fetchJSON<CreatorAnalytics>(`/v1/analytics/creator/${id}`),
   citations: (q?: Record<string, string | number | undefined>) => {
     const params = new URLSearchParams();
     if (q) {
       for (const [k, v] of Object.entries(q)) {
-        if (v !== undefined && v !== "") params.set(k, String(v));
+        if (v !== undefined && v !== "") {
+          // Apply safeLimit only to known numeric fields
+          params.set(k, k === "limit" ? String(safeLimit(Number(v))) : String(v));
+        }
       }
     }
     return fetchJSON<CitationListResponse>(`/v1/analytics/citations?${params.toString()}`);
   },
-  topSources: (limit = 10) => fetchJSON<TopSource[]>(`/v1/analytics/citations/top-sources?limit=${limit}`),
-  topDomains: (limit = 10) => fetchJSON<TopDomain[]>(`/v1/analytics/citations/top-domains?limit=${limit}`),
+  topSources: (limit = 10) => fetchJSON<TopSource[]>(`/v1/analytics/citations/top-sources?limit=${safeLimit(limit)}`),
+  topDomains: (limit = 10) => fetchJSON<TopDomain[]>(`/v1/analytics/citations/top-domains?limit=${safeLimit(limit)}`),
   citationTimeline: (range: "24h" | "7d" | "30d" | "90d" | "all" = "30d") =>
     fetchJSON<CitationTimeSeries>(`/v1/analytics/citations/timeline?range=${range}`),
   payments: (q?: Record<string, string | number | undefined>) => {
     const params = new URLSearchParams();
     if (q) {
       for (const [k, v] of Object.entries(q)) {
-        if (v !== undefined && v !== "") params.set(k, String(v));
+        if (v !== undefined && v !== "") {
+          // Apply safeLimit to limit; preserve other fields as-is
+          params.set(k, k === "limit" ? String(safeLimit(Number(v))) : String(v));
+        }
       }
     }
     return fetchJSON<PaymentListResponse>(`/v1/analytics/payments?${params.toString()}`);
