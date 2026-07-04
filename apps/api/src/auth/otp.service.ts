@@ -79,13 +79,24 @@ export class OtpService {
         `[OTP-DEMO] would send OTP ${code} to ${email} — configure AUTH_PROVIDER to enable real email.`,
       );
     } else {
+      // Log the EXACT config being used — invaluable for debugging
+      this.logger.log(
+        `[OTP-SEND] provider=${cfg.provider} from="${cfg.senderName} <${cfg.sender}>" to="${email}" code=${code}`,
+      );
       try {
         providerMessageId = await this.dispatchEmail(email, code, cfg);
+        if (providerMessageId) {
+          this.logger.log(`[OTP-SEND] Resend accepted: id=${providerMessageId}`);
+        } else {
+          this.logger.warn(`[OTP-SEND] dispatchEmail returned no messageId — email likely failed silently`);
+        }
       } catch (e) {
+        const err = e as Error;
         this.logger.error(
-          `Email dispatch failed for ${email}: ${e instanceof Error ? e.message : e}`,
+          `[OTP-SEND] FAILED for ${email}: ${err.message}\n${err.stack}`,
         );
-        // Don't reveal dispatch failure to user. Code is still valid.
+        // Re-throw so the controller can surface this in the API response for debugging
+        throw err;
       }
     }
 

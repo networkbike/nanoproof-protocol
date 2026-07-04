@@ -33,6 +33,7 @@ export class AuthController {
   @Post("otp/send")
   @HttpCode(HttpStatus.OK)
   async sendOtp(@Body() dto: OtpSendDto) {
+    const logger = new Logger("AuthController");
     if (!dto?.email || typeof dto.email !== "string") {
       return { ok: false, error: "Email is required" };
     }
@@ -40,27 +41,30 @@ export class AuthController {
       return { ok: false, error: "Invalid email format" };
     }
 
-    const result = await this.otp.sendOtp(dto.email);
-    const logger = new Logger("AuthController");
-    if (result.ok) {
-      if (result.providerMessageId) {
-        logger.log(`Resend sent OTP to ${dto.email} — messageId=${result.providerMessageId}`);
-      } else {
-        logger.warn(`OTP generated for ${dto.email} but no provider messageId returned. Provider may have silently failed. Check Resend dashboard logs.`);
-      }
-    } else {
-      logger.error(`sendOtp failed for ${dto.email}: ${result.error}`);
+    try {
+      const result = await this.otp.sendOtp(dto.email);
+      logger.log(
+        `sendOtp result: ok=${result.ok} providerMessageId=${result.providerMessageId ?? "none"} error=${result.error ?? "none"}`,
+      );
+      return {
+        ok: result.ok,
+        ttl: result.ttl,
+        message: result.ok
+          ? `OTP sent to ${dto.email}. It expires in ${Math.floor(result.ttl / 60)} minutes.`
+          : "Failed to send OTP",
+        devOtp: result.devOtp,
+        providerMessageId: result.providerMessageId,
+        error: result.error,
+      };
+    } catch (e) {
+      const err = e as Error;
+      logger.error(`sendOtp threw for ${dto.email}: ${err.message}`);
+      return {
+        ok: false,
+        error: `Email delivery failed: ${err.message}`,
+        message: "Failed to send OTP — check server logs",
+      };
     }
-    return {
-      ok: result.ok,
-      ttl: result.ttl,
-      message: result.ok
-        ? `OTP sent to ${dto.email}. It expires in ${Math.floor(result.ttl / 60)} minutes.`
-        : "Failed to send OTP",
-      devOtp: result.devOtp,
-      providerMessageId: result.providerMessageId,
-      error: result.error,
-    };
   }
 
   /**
