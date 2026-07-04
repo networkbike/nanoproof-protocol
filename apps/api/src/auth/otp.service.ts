@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createHmac, randomInt } from "crypto";
+import type { PrismaService } from "../prisma/prisma.service.js";
 import type {
   AuthProviderConfig,
   AuthStatus,
@@ -39,7 +40,10 @@ export class OtpService {
   private readonly OTP_LENGTH = 6;
   private readonly MAX_ATTEMPTS = 5;
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma?: PrismaService,
+  ) {
     // Sweep expired entries every minute.
     setInterval(() => this.sweep(), 60_000).unref?.();
   }
@@ -132,7 +136,24 @@ export class OtpService {
     this.store.delete(key);
 
     const session = this.issueSession(email);
-    return { ok: true, session };
+    // Attempt to fetch the persisted user record so the web layer can
+    // route existing users straight to their dashboard instead of the
+    // role-selection screen. Never blocks sign-in if db is unavailable.
+    let user: unknown = null;
+    if (this.prisma) {
+      try {
+        user = await this.prisma.user.findUnique({ where: { email: key } });
+        if (user) {
+          await this.prisma.user.update({
+            where: { email: key },
+            data: { lastLoginAt: new Date() },
+          });
+        }
+      } catch (e) {
+        this.logger.warn(`verifyOtp: user lookup failed for ${key}: ${(e as Error).message}`);
+      }
+    }
+    return { ok: true, session, user: user ?? undefined } as OtpVerifyResult;
   }
 
   private generateCode(): string {

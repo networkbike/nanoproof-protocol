@@ -102,6 +102,7 @@ export class AuthController implements OnModuleInit {
       return {
         ok: result.ok,
         session: result.session,
+        user: result.user,
         error: result.error,
       };
     } catch (e) {
