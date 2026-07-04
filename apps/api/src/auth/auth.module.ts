@@ -10,4 +10,4 @@ import { AuthMigrate } from "./auth.migrate";
   providers: [OtpService, AuthMigrate],
   exports: [OtpService, AuthMigrate],
 })
-export class AuthModule {}
+export class AuthModule {}/* forced-rebuild-1783195384 */
