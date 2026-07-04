@@ -1,17 +1,21 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service.js";
 
 /**
  * One-shot migration runner. Applies the latest pending migration
  * directly via SQL. Safe to call multiple times (idempotent).
+ *
+ * NOT a NestJS Injectable — instantiated directly with the PrismaService
+ * passed in. This avoids DI issues when the caller already has a prisma
+ * instance available (like AuthController does).
  */
-@Injectable()
 export class AuthMigrate {
   private readonly logger = new Logger(AuthMigrate.name);
-  constructor(private readonly prisma: any) {}
+  
+  constructor(private readonly prisma: PrismaService) {}
 
   async runUserTableMigration(): Promise<{ ok: boolean; message: string }> {
     try {
-      // Check if users table already exists
       const tables = await this.prisma.$queryRaw<{ table_name: string }[]>`
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'users'
@@ -20,7 +24,6 @@ export class AuthMigrate {
         return { ok: true, message: "users table already exists" };
       }
 
-      // Create the users table
       await this.prisma.$executeRawUnsafe(`
         CREATE TABLE "users" (
           "id" TEXT NOT NULL,

@@ -24,7 +24,6 @@ export class AuthController {
   constructor(
     private readonly otp: OtpService,
     private readonly prisma: any,
-    private readonly authMigrate: AuthMigrate,
   ) {}
 
   @Get("status")
@@ -225,6 +224,8 @@ export class AuthController {
   @Post("migrate")
   @HttpCode(HttpStatus.OK)
   async migrate() {
-    return this.authMigrate.runUserTableMigration();
+    const { AuthMigrate } = await import("./auth.migrate");
+    const m = new AuthMigrate(this.prisma as any);
+    return m.runUserTableMigration();
   }
 }
