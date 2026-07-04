@@ -212,4 +212,16 @@ export class AuthController {
       return { ok: false, error: (e as Error).message };
     }
   }
+
+  /**
+   * One-shot manual migration runner — creates the users table if missing.
+   * Safe to call multiple times.
+   */
+  @Post("migrate")
+  @HttpCode(HttpStatus.OK)
+  async migrate() {
+    const { AuthMigrate } = await import("./auth.migrate");
+    const m = new AuthMigrate(this.prisma);
+    return m.runUserTableMigration();
+  }
 }
