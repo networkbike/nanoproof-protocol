@@ -100,10 +100,29 @@ export class AuthController implements OnModuleInit {
 
     try {
       const result = await this.otp.verifyOtp(dto.email, dto.otp);
+      // Look up the user from the database so existing users land on
+      // their dashboard instead of going through role selection again.
+      let user: unknown = undefined;
+      if (result.ok) {
+        try {
+          const u = await this.prisma.user.findUnique({
+            where: { email: dto.email.toLowerCase() },
+          });
+          if (u) {
+            await this.prisma.user.update({
+              where: { id: u.id },
+              data: { lastLoginAt: new Date() },
+            });
+            user = u;
+          }
+        } catch (e) {
+          this.logger.warn(`verifyOtp: user lookup failed for ${dto.email}: ${(e as Error).message}`);
+        }
+      }
       return {
         ok: result.ok,
         session: result.session,
-        user: result.user,
+        user,
         error: result.error,
       };
     } catch (e) {
