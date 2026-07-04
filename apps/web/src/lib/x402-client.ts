@@ -4,6 +4,23 @@
 
 import { api } from "./api.js";
 
+/**
+ * Browser-side fetch helper — always uses same-origin /api/* paths so we
+ * avoid CORS entirely. The Next.js API routes proxy to the api server-side.
+ */
+async function browserApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText, error: res.statusText }));
+    throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export interface X402Accept {
   scheme: "exact" | "upto";
   network: string;
@@ -167,20 +184,20 @@ export const x402Client = {
       response: Record<string, unknown>;
     }>("/payments/settle", { method: "POST", body: JSON.stringify(input) }),
 
-  /** Re-verify a settlement via ArcScan */
+  /** Re-verify a settlement via ArcScan — via web proxy to avoid CORS */
   verify: (proofId: string) =>
-    api<{ proofId: string; status: "VERIFIED" | "PENDING" | "FAILED" }>(
-      "/payments/verify",
+    browserApi<{ proofId: string; status: "VERIFIED" | "PENDING" | "FAILED" }>(
+      "/api/x402/payments/verify",
       { method: "POST", body: JSON.stringify({ proofId }) },
     ),
 
   /** Get a payment + proof + events */
-  getPayment: (id: string) => api<PaymentDetail>(`/payments/${id}`),
+  getPayment: (id: string) => browserApi<PaymentDetail>(`/api/x402/payments/${id}`),
 
   /** Get a proof + timeline */
   getProof: (id: string) =>
-    api<{ found: boolean; proof?: SettlementProofSummary; payment?: PaymentRecord; events?: VerificationEventRecord[] }>(
-      `/payments/proof/${id}`,
+    browserApi<{ found: boolean; proof?: SettlementProofSummary; payment?: PaymentRecord; events?: VerificationEventRecord[] }>(
+      `/api/x402/payments/proof/${id}`,
     ),
 
   /** List recent payments */
@@ -189,23 +206,24 @@ export const x402Client = {
     if (params.creatorId) search.set("creatorId", params.creatorId);
     if (params.payerAddress) search.set("payerAddress", params.payerAddress);
     if (params.limit) search.set("limit", String(params.limit));
-    return api<{
+    return browserApi<{
       payments: PaymentRecord[];
       proofs: SettlementProofSummary[];
       requests: Record<string, unknown>[];
-    }>(`/payments/history?${search.toString()}`);
+    }>(`/api/x402/payments/history?${search.toString()}`);
   },
 
   /** Aggregate revenue for a creator */
-  revenue: (creatorId: string) => api<CreatorRevenue>(`/creators/${creatorId}/revenue`),
+  revenue: (creatorId: string) => browserApi<CreatorRevenue>(`/api/x402/creators/${creatorId}/revenue`),
 
   /** Protocol-wide metrics */
-  metrics: () => api<ProtocolMetrics>("/metrics"),
+  metrics: () => browserApi<ProtocolMetrics>("/api/x402/metrics"),
 
   /** Recent supporters */
-  supporters: (limit = 20) => api<Array<{ address: string; totalPaid: string; totalPaidDisplay: string; totalPayments: number; lastSeenAt: string }>>(
-    `/supporters?limit=${limit}`,
-  ),
+  supporters: (limit = 20) =>
+    browserApi<Array<{ address: string; totalPaid: string; totalPaidDisplay: string; totalPayments: number; lastSeenAt: string }>>(
+      `/api/x402/supporters?limit=${limit}`,
+    ),
 
   /** One-click demo flow — routed through the web proxy to avoid CORS */
   demo: (input: { creatorId: string; resource?: string; amountUsdc?: string; payerAddress?: string }) =>
