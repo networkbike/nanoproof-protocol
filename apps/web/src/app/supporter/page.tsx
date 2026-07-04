@@ -12,6 +12,15 @@ interface Session {
   expiresAt: string;
 }
 
+interface User {
+  id: string;
+  email: string;
+  role: string;
+  displayName?: string;
+  walletAddress?: string;
+  supporterId?: string;
+}
+
 interface SupporterOverview {
   supporter: { address: string };
   spending: {
@@ -53,6 +62,8 @@ export default function SupporterDashboard() {
   const [overview, setOverview] = useState<SupporterOverview | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [user, setUser] = useState<User | null>(null);
+
   useEffect(() => {
     const stored = localStorage.getItem("nanoproof-session");
     if (!stored) {
@@ -61,6 +72,14 @@ export default function SupporterDashboard() {
     }
     const s = JSON.parse(stored) as Session;
     setSession(s);
+
+    const userStored = localStorage.getItem("nanoproof-user");
+    if (userStored) {
+      try {
+        setUser(JSON.parse(userStored) as User);
+      } catch { /* ignore */ }
+    }
+
     load(s);
     const interval = setInterval(() => load(s), 12_000);
     return () => clearInterval(interval);
@@ -108,9 +127,12 @@ export default function SupporterDashboard() {
         <div className="flex items-start justify-between gap-6">
           <div>
             <div className="text-xs font-medium uppercase tracking-wider text-blue-100">Supporter dashboard</div>
-            <h1 className="mt-2 text-3xl font-bold">Thanks for supporting creators</h1>
+            <h1 className="mt-2 text-3xl font-bold">
+              Thanks for supporting{user?.displayName ? `, ${user.displayName}` : user?.email ? `, ${user.email.split("@")[0]}` : ""}
+            </h1>
             <p className="mt-1 text-sm text-blue-100">
-              Address: <code className="font-mono">{overview.supporter.address.slice(0, 10)}…{overview.supporter.address.slice(-6)}</code>
+              {user?.email && (<>Email: <code className="font-mono">{user.email}</code> · </>)}
+              Wallet: <code className="font-mono">{user?.walletAddress?.slice(0, 10) ?? overview.supporter.address.slice(0, 10)}…{(user?.walletAddress ?? overview.supporter.address).slice(-6)}</code>
             </p>
           </div>
           <div className="flex gap-2">

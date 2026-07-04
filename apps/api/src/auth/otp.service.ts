@@ -39,7 +39,7 @@ export class OtpService {
   private readonly OTP_LENGTH = 6;
   private readonly MAX_ATTEMPTS = 5;
 
-  constructor(private config: ConfigService) {
+  constructor(private config: ConfigService, private prisma: any) {
     // Sweep expired entries every minute.
     setInterval(() => this.sweep(), 60_000).unref?.();
   }
@@ -132,7 +132,19 @@ export class OtpService {
     this.store.delete(key);
 
     const session = this.issueSession(email);
-    return { ok: true, session };
+    // Attempt to load existing user, but never block sign-in if db is unavailable.
+    let user: any = null;
+    try {
+      user = await this.prisma.user.findUnique({ where: { email: key } });
+    } catch (e) {
+      this.logger.warn(`Could not load user for ${key}: ${(e as Error).message}`);
+    }
+    if (session) {
+      (session as any).isNewUser = !user;
+      (session as any).role = user?.role ?? null;
+      (session as any).displayName = user?.displayName ?? null;
+    }
+    return { ok: true, session: session as any, user };
   }
 
   private generateCode(): string {

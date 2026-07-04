@@ -12,6 +12,15 @@ interface Session {
   expiresAt: string;
 }
 
+interface User {
+  id: string;
+  email: string;
+  role: string;
+  displayName?: string;
+  creatorId?: string;
+  walletAddress?: string;
+}
+
 interface CreatorOverview {
   creator: { id: string; handle: string; displayName: string; walletAddress: string };
   revenue: {
@@ -47,6 +56,8 @@ export default function CreatorDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [user, setUser] = useState<User | null>(null);
+
   useEffect(() => {
     const stored = localStorage.getItem("nanoproof-session");
     if (!stored) {
@@ -55,6 +66,14 @@ export default function CreatorDashboard() {
     }
     const s = JSON.parse(stored) as Session;
     setSession(s);
+
+    // Load user record from localStorage (saved during sign-in)
+    const userStored = localStorage.getItem("nanoproof-user");
+    if (userStored) {
+      try {
+        setUser(JSON.parse(userStored) as User);
+      } catch { /* ignore */ }
+    }
 
     loadOverview(s);
     const interval = setInterval(() => loadOverview(s), 12_000);
@@ -107,9 +126,12 @@ export default function CreatorDashboard() {
         <div className="flex items-start justify-between gap-6">
           <div>
             <div className="text-xs font-medium uppercase tracking-wider text-indigo-100">Creator dashboard</div>
-            <h1 className="mt-2 text-3xl font-bold">Welcome back, {c.displayName}</h1>
+            <h1 className="mt-2 text-3xl font-bold">
+              Welcome back{user?.displayName ? `, ${user.displayName}` : user?.email ? `, ${user.email.split("@")[0]}` : ""}
+            </h1>
             <p className="mt-1 text-sm text-indigo-100">
-              Handle: <code className="font-mono">@{c.handle}</code> · {c.walletAddress.slice(0, 10)}…{c.walletAddress.slice(-6)}
+              {user?.email && (<>Email: <code className="font-mono">{user.email}</code> · </>)}
+              Handle: <code className="font-mono">@{c.handle}</code>
             </p>
           </div>
           <div className="flex gap-2">

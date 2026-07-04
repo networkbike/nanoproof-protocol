@@ -103,11 +103,18 @@ export default function SignInPage() {
         setErrorHint(d.hint || null);
         return;
       }
+      // Store session + user info
       localStorage.setItem("nanoproof-session", JSON.stringify(d.session));
-      const storedRole = localStorage.getItem("nanoproof-role");
-      if (storedRole) {
-        router.push(storedRole === "creator" ? "/creator" : "/supporter");
+      if (d.user) {
+        localStorage.setItem("nanoproof-user", JSON.stringify(d.user));
+        localStorage.setItem("nanoproof-role", d.user.role);
+        // Existing user → go to their dashboard
+        setStep("redirect");
+        setTimeout(() => {
+          router.push(d.user.role === "creator" ? "/creator" : "/supporter");
+        }, 600);
       } else {
+        // New user → role selection
         setStep("role");
       }
     } catch (err) {
@@ -117,14 +124,36 @@ export default function SignInPage() {
     }
   }
 
-  function selectRole(r: "creator" | "supporter") {
-    setRole(r);
-    localStorage.setItem("nanoproof-role", r);
-    setStep("redirect");
-    setTimeout(() => {
-      router.push(r === "creator" ? "/creator" : "/supporter");
-    }, 600);
+  async function onboardAndContinue(selectedRole: "creator" | "supporter") {
+    setLoading(true);
+    setError(null);
+    try {
+      // Create user record via backend
+      const r = await fetch("/api/auth/onboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, role: selectedRole, displayName: email.split("@")[0] }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) {
+        setError(d.error || "Failed to create profile");
+        return;
+      }
+      localStorage.setItem("nanoproof-user", JSON.stringify(d.user));
+      localStorage.setItem("nanoproof-role", selectedRole);
+      setRole(selectedRole);
+      setStep("redirect");
+      setTimeout(() => {
+        router.push(selectedRole === "creator" ? "/creator" : "/supporter");
+      }, 600);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create profile");
+    } finally {
+      setLoading(false);
+    }
   }
+
+  // selectRole removed - use onboardAndContinue instead which creates the user record
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -211,7 +240,7 @@ export default function SignInPage() {
             />
           )}
           {step === "role" && (
-            <RoleStep role={role} onSelect={selectRole} />
+            <RoleStep role={role} onSelect={onboardAndContinue} />
           )}
           {step === "redirect" && (
             <RedirectStep role={role} />

@@ -675,3 +675,27 @@ model ProtocolMetrics {
 
   @@map("protocol_metrics")
 }
+
+// -----------------------------------------------------------------------------
+// User — authenticated account (email OTP login)
+//
+// One row per authenticated email. Holds role (creator | supporter) and
+// links to the Creator or Supporter record that represents this user on
+// the protocol. Created on first OTP verification.
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String   @id @default(cuid()) // "usr_<ulid>"
+  email         String   @unique
+  role          String   // "creator" | "supporter"
+  displayName   String?
+  walletAddress String?  // user's own wallet (for supporters)
+  creatorId     String?  // link to Creator record if role=creator
+  supporterId   String?  // link to Supporter record if role=supporter
+  lastLoginAt   DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([role])
+  @@map("users")
+}
