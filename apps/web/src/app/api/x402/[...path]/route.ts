@@ -1,9 +1,9 @@
 /**
  * Generic catch-all proxy for /api/x402/* → api /<path>
  *
- * Works for any x402 endpoint: /api/x402/metrics, /api/x402/demo, /api/x402/payments/settle,
- * /api/x402/payments/history, /api/x402/payments/proof/123, /api/x402/creators/alice/revenue,
- * /api/x402/supporters, etc.
+ * For most endpoints (/metrics, /supporters, /payments/*, /creators/*),
+ * the browser hit path mirrors the api path exactly. The only special
+ * case is /demo — the api serves it at /x402/demo (with prefix) not /demo.
  *
  * The browser hits /api/x402/* (same-origin) and we forward to
  * process.env.NEXT_PUBLIC_API_URL/<path> server-to-server (no CORS).
@@ -13,10 +13,17 @@ import type { NextRequest } from "next/server";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "https://nanoproof-api-production.up.railway.app";
 
+// Some routes live under /x402/ on the api rather than at root.
+const X402_PREFIXED: Record<string, true> = {
+  demo: true,
+};
+
 async function forward(req: NextRequest): Promise<Response> {
-  const path = req.nextUrl.pathname.replace(/^\/api\/x402\//, "");
+  const tail = req.nextUrl.pathname.replace(/^\/api\/x402\//, "");
   const search = req.nextUrl.search;
-  const targetUrl = `${API}/${path}${search}`;
+  const first = tail.split("/")[0];
+  const targetPath = X402_PREFIXED[first] ? `/x402/${tail}` : `/${tail}`;
+  const targetUrl = `${API}${targetPath}${search}`;
 
   // Forward body for POST/PUT/PATCH
   const isReadOnly = req.method === "GET" || req.method === "HEAD";
