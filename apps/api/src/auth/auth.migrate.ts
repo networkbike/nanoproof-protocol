@@ -1,7 +1,4 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { readFileSync } from "fs";
-import { join } from "path";
-import { PrismaService } from "../prisma/prisma.service.js";
 
 /**
  * One-shot migration runner. Applies the latest pending migration
@@ -10,7 +7,7 @@ import { PrismaService } from "../prisma/prisma.service.js";
 @Injectable()
 export class AuthMigrate {
   private readonly logger = new Logger(AuthMigrate.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: any) {}
 
   async runUserTableMigration(): Promise<{ ok: boolean; message: string }> {
     try {

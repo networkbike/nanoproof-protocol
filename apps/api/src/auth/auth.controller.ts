@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Logger, Post } from "@nest
 import { OtpService } from "./otp.service";
 import { Public } from "../common/decorators/index.js";
 import { PrismaService } from "../prisma/prisma.service.js";
+import { AuthMigrate } from "./auth.migrate.js";
 
 interface OtpSendDto {
   email: string;
@@ -20,7 +21,11 @@ interface OnboardDto {
 @Controller("auth")
 @Public()
 export class AuthController {
-  constructor(private readonly otp: OtpService, private readonly prisma: any) {}
+  constructor(
+    private readonly otp: OtpService,
+    private readonly prisma: any,
+    private readonly authMigrate: AuthMigrate,
+  ) {}
 
   @Get("status")
   status() {
@@ -220,8 +225,6 @@ export class AuthController {
   @Post("migrate")
   @HttpCode(HttpStatus.OK)
   async migrate() {
-    const { AuthMigrate } = await import("./auth.migrate");
-    const m = new AuthMigrate(this.prisma);
-    return m.runUserTableMigration();
+    return this.authMigrate.runUserTableMigration();
   }
 }
