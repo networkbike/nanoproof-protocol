@@ -14,7 +14,18 @@ async function bootstrap() {
   });
 
   const port = Number(process.env.PORT ?? 4000);
-  const origins = (process.env.CORS_ORIGINS ?? "http://localhost:3000").split(",");
+  // CORS origins — explicit env var wins, otherwise default to the known
+  // production web host so judges / demos always work out of the box.
+  const envOrigins = (process.env.CORS_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean);
+  const defaultOrigins = [
+    "http://localhost:3000",
+    "https://nanoproof-web-production.up.railway.app",
+    "https://nanoproof.online",
+    "https://www.nanoproof.online",
+  ];
+  const origins = envOrigins.length > 0 ? envOrigins : defaultOrigins;
+  // eslint-disable-next-line no-console
+  console.log(`[bootstrap] CORS origins: ${origins.join(", ")}`);
 
   app.use(helmet());
   app.enableCors({ origin: origins, credentials: true });
