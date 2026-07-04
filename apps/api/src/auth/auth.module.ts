@@ -2,10 +2,10 @@ import { Module } from "@nestjs/common";
 import { AuthController } from "./auth.controller";
 import { OtpService } from "./otp.service";
 import { AuthMigrate } from "./auth.migrate";
-import { PrismaModule } from "../prisma/prisma.module.js";
+// PrismaModule is already imported globally in AppModule, so we don't
+// re-import it here (avoids NestJS "potential circular dependency" error).
 
 @Module({
-  imports: [PrismaModule],
   controllers: [AuthController],
   providers: [OtpService, AuthMigrate],
   exports: [OtpService, AuthMigrate],
