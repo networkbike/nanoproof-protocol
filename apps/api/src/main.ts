@@ -27,7 +27,16 @@ async function bootstrap() {
     `[bootstrap] CORS mode: ${envOrigins.length > 0 ? `explicit allowlist [${envOrigins.join(", ")}]` : "reflect any origin (open)"}`,
   );
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      // The web app lives on a different origin (nanoproof-web-production.up.railway.app)
+      // than the api, so we must allow cross-origin resource reads. The default
+      // 'same-origin' policy silently breaks fetch() from the browser.
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      crossOriginOpenerPolicy: { policy: "unsafe-none" },
+      contentSecurityPolicy: false,
+    }),
+  );
   app.enableCors(corsOptions);
 
   // Per-endpoint validation via ZodValidationPipe (wraps @nestjs/common
