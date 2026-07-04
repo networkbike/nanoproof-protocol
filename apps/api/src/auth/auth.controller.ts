@@ -23,7 +23,7 @@ interface OnboardDto {
 export class AuthController {
   constructor(
     private readonly otp: OtpService,
-    private readonly prisma: any,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get("status")
@@ -134,13 +134,22 @@ export class AuthController {
         if (dto.role === "creator") {
           // Create a Creator record and link it
           const username = "u_" + email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) + Math.random().toString(36).slice(2, 6);
+          const walletAddress = "0x" + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
           const creator = await this.prisma.creator.create({
             data: {
               username,
               name: displayName,
               email,
               bio: "Joined NanoProof",
-              walletAddress: "0x" + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join(""),
+            },
+          });
+          // Create a primary Wallet for this creator
+          await this.prisma.wallet.create({
+            data: {
+              creatorId: creator.id,
+              address: walletAddress,
+              network: "ARC_TESTNET",
+              isPrimary: true,
             },
           });
           user = await this.prisma.user.create({
@@ -149,6 +158,7 @@ export class AuthController {
               role: "creator",
               displayName,
               creatorId: creator.id,
+              walletAddress,
               lastLoginAt: new Date(),
             },
           });
@@ -225,7 +235,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async migrate() {
     const { AuthMigrate } = await import("./auth.migrate");
-    const m = new AuthMigrate(this.prisma as any);
+    const m = new AuthMigrate(this.prisma);
     return m.runUserTableMigration();
   }
 }

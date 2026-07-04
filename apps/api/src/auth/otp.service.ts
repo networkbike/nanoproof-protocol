@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createHmac, randomInt } from "crypto";
+import { PrismaService } from "../prisma/prisma.service.js";
 import type {
   AuthProviderConfig,
   AuthStatus,
@@ -39,7 +40,7 @@ export class OtpService {
   private readonly OTP_LENGTH = 6;
   private readonly MAX_ATTEMPTS = 5;
 
-  constructor(private config: ConfigService, private prisma: any) {
+  constructor(private config: ConfigService, private prisma: PrismaService) {
     // Sweep expired entries every minute.
     setInterval(() => this.sweep(), 60_000).unref?.();
   }
