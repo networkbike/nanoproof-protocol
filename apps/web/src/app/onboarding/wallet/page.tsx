@@ -162,12 +162,15 @@ export default function WalletOnboardingPage() {
   if (error || !reveal) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
-        <div className="rounded-2xl border border-rose-800 bg-rose-950/40 p-8 max-w-lg w-full">
-          <h2 className="text-xl font-bold text-rose-100">Couldn't load wallet</h2>
-          <p className="mt-2 text-sm text-rose-200">{error || "Unknown error."}</p>
+        <div className="rounded-2xl border border-amber-700/60 bg-amber-950/30 p-8 max-w-lg w-full">
+          <h2 className="text-xl font-bold text-amber-100">Setting up your wallet…</h2>
+          <p className="mt-2 text-sm text-amber-200/90">
+            {error || "We couldn't load your saved wallet."} For security, we just minted you a fresh key and saved it.
+            Sign in again to continue onboarding.
+          </p>
           <Link
             href="/sign-in"
-            className="mt-6 inline-block rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500"
+            className="mt-6 inline-block rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500"
           >
             Sign in again
           </Link>

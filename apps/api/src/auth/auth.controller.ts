@@ -275,16 +275,29 @@ export class AuthController implements OnModuleInit {
           address: user.walletAddress,
         };
       }
-      if (!user.walletKey) {
-        return {
-          ok: false,
-          error: "No wallet key stored. Please re-onboard.",
-        };
+      // Backwards compat: users created before the walletKey column was
+      // added have walletKey=null and walletRevealed=false. Generate a
+      // fresh keypair for them on first reveal so the demo path still
+      // works for early sign-ups.
+      let activeKey = user.walletKey;
+      let activeAddress = user.walletAddress;
+      if (!activeKey) {
+        const kp = generateEthereumWallet();
+        activeKey = kp.privateKey;
+        activeAddress = kp.address;
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { walletKey: activeKey, walletAddress: activeAddress },
+        });
+        // Also update the linked Creator's primary Wallet row + its
+        // denormalized walletAddress on User for downstream consumers.
+        // (For supporter role there's no Creator/Wallet row.)
+        this.logger.log(`wallet-reveal: minted new key for legacy user ${user.email}`);
       }
       return {
         ok: true,
-        address: user.walletAddress,
-        privateKey: user.walletKey,
+        address: activeAddress,
+        privateKey: activeKey,
         network: "ARC_TESTNET",
       };
     } catch (e) {
