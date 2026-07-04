@@ -1,6 +1,17 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Logger, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  OnModuleInit,
+  Post,
+} from "@nestjs/common";
 import { OtpService } from "./otp.service";
 import { Public } from "../common/decorators/index.js";
+import { PrismaService } from "../prisma/prisma.service.js";
+import { AuthMigrate } from "./auth.migrate.js";
 
 interface OtpSendDto {
   email: string;
@@ -11,25 +22,44 @@ interface OtpVerifyDto {
   otp: string;
 }
 
+interface OnboardDto {
+  email: string;
+  role: "creator" | "supporter";
+  displayName?: string;
+}
+
+interface MeDto {
+  email: string;
+}
+
 @Public()
 @Controller("auth")
-export class AuthController {
-  constructor(private readonly otp: OtpService) {}
+export class AuthController implements OnModuleInit {
+  private readonly logger = new Logger(AuthController.name);
+  private migrator!: AuthMigrate;
 
-  /**
-   * Public auth status — tells clients whether a real email provider is configured.
-   * Used by the sign-in page to show a friendly "demo mode" banner.
-   */
+  constructor(
+    private readonly otp: OtpService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  // Auto-create the users table on first boot so /onboard + /me work
+  // immediately after deployment. Wrapped in try/catch — never fatal.
+  async onModuleInit() {
+    try {
+      this.migrator = new AuthMigrate(this.prisma);
+      const r = await this.migrator.ensureUserTable();
+      this.logger.log(`ensureUserTable: ${r.message}`);
+    } catch (e) {
+      this.logger.warn(`ensureUserTable failed: ${(e as Error).message}`);
+    }
+  }
+
   @Get("status")
   status() {
     return this.otp.getStatus();
   }
 
-  /**
-   * Send an OTP to the given email.
-   * In demo mode, returns the code in devOtp so judges can sign in without a real provider.
-   * In production, returns ok: true and the email is dispatched to the configured provider.
-   */
   @Post("otp/send")
   @HttpCode(HttpStatus.OK)
   async sendOtp(@Body() dto: OtpSendDto) {
@@ -40,7 +70,6 @@ export class AuthController {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dto.email)) {
       return { ok: false, error: "Invalid email format" };
     }
-
     try {
       const result = await this.otp.sendOtp(dto.email);
       logger.log(
@@ -48,43 +77,169 @@ export class AuthController {
       );
       return {
         ok: result.ok,
-        ttl: result.ttl,
-        message: result.ok
-          ? `OTP sent to ${dto.email}. It expires in ${Math.floor(result.ttl / 60)} minutes.`
-          : "Failed to send OTP",
-        devOtp: result.devOtp,
-        providerMessageId: result.providerMessageId,
-        error: result.error,
       };
     } catch (e) {
-      const err = e as Error;
-      logger.error(`sendOtp threw for ${dto.email}: ${err.message}`);
-      return {
-        ok: false,
-        error: `Email delivery failed: ${err.message}`,
-        message: "Failed to send OTP — check server logs",
-      };
+      logger.error(`sendOtp threw: ${(e as Error).message}`);
+      return { ok: false, error: (e as Error).message };
     }
   }
 
-  /**
-   * Verify the OTP and issue a session token.
-   */
   @Post("otp/verify")
   @HttpCode(HttpStatus.OK)
   async verifyOtp(@Body() dto: OtpVerifyDto) {
-    if (!dto?.email || !dto?.otp) {
-      return { ok: false, error: "Email and OTP are required" };
+    if (!dto?.email || typeof dto.email !== "string") {
+      return { ok: false, error: "Email is required" };
+    }
+    if (!dto?.otp || typeof dto.otp !== "string") {
+      return { ok: false, error: "OTP is required" };
     }
     if (!/^\d{6}$/.test(dto.otp)) {
       return { ok: false, error: "OTP must be 6 digits" };
     }
 
-    const result = await this.otp.verifyOtp(dto.email, dto.otp);
-    return {
-      ok: result.ok,
-      session: result.session,
-      error: result.error,
-    };
+    try {
+      const result = await this.otp.verifyOtp(dto.email, dto.otp);
+      return {
+        ok: result.ok,
+        session: result.session,
+        error: result.error,
+      };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  }
+
+  /**
+   * Create or fetch a user record. Called by the web dashboard
+   * after a successful OTP verification.
+   *
+   * Body: { email: string, role: "creator" | "supporter", displayName?: string }
+   *
+   * Returns the existing user if one already exists with this email —
+   * never overwrites. Otherwise creates a new User + linked Creator /
+   * Supporter record.
+   */
+  @Post("onboard")
+  @HttpCode(HttpStatus.OK)
+  async onboard(@Body() dto: OnboardDto) {
+    if (!dto?.email || typeof dto.email !== "string") {
+      return { ok: false, error: "email is required" };
+    }
+    if (!dto.role || !["creator", "supporter"].includes(dto.role)) {
+      return { ok: false, error: "role must be creator or supporter" };
+    }
+    const email = dto.email.toLowerCase();
+
+    try {
+      // Idempotency: if user already exists for this email, just refresh + return.
+      const existing = await this.prisma.user.findUnique({ where: { email } });
+      if (existing) {
+        await this.prisma.user.update({
+          where: { id: existing.id },
+          data: { lastLoginAt: new Date() },
+        });
+        return { ok: true, user: { ...existing, lastLoginAt: new Date() } };
+      }
+
+      // First-time user — derive displayName from email
+      const baseName = email.split("@")[0];
+      const displayName =
+        dto.displayName || baseName.charAt(0).toUpperCase() + baseName.slice(1);
+
+      if (dto.role === "creator") {
+        const username =
+          "u_" +
+          baseName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) +
+          Math.random().toString(36).slice(2, 6);
+        const walletAddress =
+          "0x" +
+          Array.from({ length: 40 }, () =>
+            Math.floor(Math.random() * 16).toString(16),
+          ).join("");
+
+        const creator = await this.prisma.creator.create({
+          data: {
+            username,
+            name: displayName,
+            email,
+            bio: "Joined NanoProof",
+          },
+        });
+        await this.prisma.wallet.create({
+          data: {
+            creatorId: creator.id,
+            address: walletAddress,
+            network: "ARC_TESTNET",
+            isPrimary: true,
+          },
+        });
+        const user = await this.prisma.user.create({
+          data: {
+            email,
+            role: "creator",
+            displayName,
+            creatorId: creator.id,
+            walletAddress,
+          },
+        });
+        return { ok: true, user };
+      }
+
+      // supporter
+      const walletAddress =
+        "0x" +
+        Array.from({ length: 40 }, () =>
+          Math.floor(Math.random() * 16).toString(16),
+        ).join("");
+      const supporter = await this.prisma.supporter.create({
+        data: { address: walletAddress, label: displayName },
+      });
+      const user = await this.prisma.user.create({
+        data: {
+          email,
+          role: "supporter",
+          displayName,
+          supporterId: supporter.id,
+          walletAddress,
+        },
+      });
+      return { ok: true, user };
+    } catch (e) {
+      const err = e as Error;
+      this.logger.error(`onboard(${email}): ${err.message}`);
+      return { ok: false, error: err.message };
+    }
+  }
+
+  /**
+   * Fetch the user record for a given email (used by the web dashboards
+   * to display the signed-in user's displayName + role).
+   *
+   * Body: { email: string }
+   */
+  @Post("me")
+  @HttpCode(HttpStatus.OK)
+  async me(@Body() dto: MeDto) {
+    if (!dto?.email) return { ok: false, error: "email required" };
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { email: dto.email.toLowerCase() },
+      });
+      if (!user) return { ok: false, error: "User not found" };
+      return { ok: true, user };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  }
+
+  /**
+   * One-shot migration runner. Creates the users table on demand.
+   * Safe to call multiple times.
+   */
+  @Post("migrate")
+  @HttpCode(HttpStatus.OK)
+  async migrate() {
+    const m = new AuthMigrate(this.prisma);
+    return m.ensureUserTable();
   }
 }
