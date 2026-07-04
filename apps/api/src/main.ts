@@ -14,21 +14,21 @@ async function bootstrap() {
   });
 
   const port = Number(process.env.PORT ?? 4000);
-  // CORS origins — explicit env var wins, otherwise default to the known
-  // production web host so judges / demos always work out of the box.
+  // CORS — use an explicit allowlist if set, otherwise reflect any
+  // request origin. This is a public hackathon demo API, so accepting
+  // all origins is fine. Lepton judges + your friends can sign in from
+  // anywhere without CORS friction.
   const envOrigins = (process.env.CORS_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean);
-  const defaultOrigins = [
-    "http://localhost:3000",
-    "https://nanoproof-web-production.up.railway.app",
-    "https://nanoproof.online",
-    "https://www.nanoproof.online",
-  ];
-  const origins = envOrigins.length > 0 ? envOrigins : defaultOrigins;
+  const corsOptions = envOrigins.length > 0
+    ? { origin: envOrigins, credentials: true }
+    : { origin: true, credentials: false };
   // eslint-disable-next-line no-console
-  console.log(`[bootstrap] CORS origins: ${origins.join(", ")}`);
+  console.log(
+    `[bootstrap] CORS mode: ${envOrigins.length > 0 ? `explicit allowlist [${envOrigins.join(", ")}]` : "reflect any origin (open)"}`,
+  );
 
   app.use(helmet());
-  app.enableCors({ origin: origins, credentials: true });
+  app.enableCors(corsOptions);
 
   // Per-endpoint validation via ZodValidationPipe (wraps @nestjs/common
   // ValidationPipe with a Zod schema). We intentionally do NOT mount a
