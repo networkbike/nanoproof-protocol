@@ -207,7 +207,16 @@ export const x402Client = {
     `/supporters?limit=${limit}`,
   ),
 
-  /** One-click demo flow */
+  /** One-click demo flow — routed through the web proxy to avoid CORS */
   demo: (input: { creatorId: string; resource?: string; amountUsdc?: string; payerAddress?: string }) =>
-    api<DemoResult>("/x402/demo", { method: "POST", body: JSON.stringify(input) }),
+    fetch("/api/x402/demo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      cache: "no-store",
+    }).then(async (r) => {
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || d.message || `HTTP ${r.status}`);
+      return d as DemoResult;
+    }),
 };
