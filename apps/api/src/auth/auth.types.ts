@@ -22,8 +22,6 @@ export interface OtpVerifyResult {
     /** ISO timestamp of when the session was issued. */
     issuedAt: string;
   };
-  /** The persisted user record, if any. Null if this is a brand-new email. */
-  user?: any;
   error?: string;
 }
 
