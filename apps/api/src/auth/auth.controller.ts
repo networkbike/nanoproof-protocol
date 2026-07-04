@@ -310,3 +310,4 @@ export class AuthController implements OnModuleInit {
     return m.ensureUserTable();
   }
 }
+// build trigger: Sat Jul  4 23:05:25 UTC 2026
