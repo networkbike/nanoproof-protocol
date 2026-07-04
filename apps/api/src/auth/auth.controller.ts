@@ -12,6 +12,7 @@ import { OtpService } from "./otp.service";
 import { Public } from "../common/decorators/index.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { AuthMigrate } from "./auth.migrate.js";
+import { generateEthereumWallet } from "./auth.wallet.js";
 
 interface OtpSendDto {
   email: string;
@@ -152,11 +153,11 @@ export class AuthController implements OnModuleInit {
           "u_" +
           baseName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) +
           Math.random().toString(36).slice(2, 6);
-        const walletAddress =
-          "0x" +
-          Array.from({ length: 40 }, () =>
-            Math.floor(Math.random() * 16).toString(16),
-          ).join("");
+        // Generate a REAL Ethereum keypair (private key + address). The
+        // creator can import the private key into MetaMask to actually
+        // access their USDC earnings on Arc. Demo-style custodial wallet.
+        const kp = generateEthereumWallet();
+        const walletAddress = kp.address;
 
         const creator = await this.prisma.creator.create({
           data: {
@@ -181,17 +182,15 @@ export class AuthController implements OnModuleInit {
             displayName,
             creatorId: creator.id,
             walletAddress,
+            walletKey: kp.privateKey,
           },
         });
         return { ok: true, user };
       }
 
       // supporter
-      const walletAddress =
-        "0x" +
-        Array.from({ length: 40 }, () =>
-          Math.floor(Math.random() * 16).toString(16),
-        ).join("");
+      const kp = generateEthereumWallet();
+      const walletAddress = kp.address;
       const supporter = await this.prisma.supporter.create({
         data: { address: walletAddress, label: displayName },
       });
@@ -202,6 +201,7 @@ export class AuthController implements OnModuleInit {
           displayName,
           supporterId: supporter.id,
           walletAddress,
+          walletKey: kp.privateKey,
         },
       });
       return { ok: true, user };
@@ -228,6 +228,72 @@ export class AuthController implements OnModuleInit {
       });
       if (!user) return { ok: false, error: "User not found" };
       return { ok: true, user };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  }
+
+  /**
+   * Reveal the user's custodial wallet one time. Returns plaintext
+   * private key on first call. After wallet-confirm is called, returns
+   * { alreadyRevealed: true } instead.
+   *
+   * Body: { email: string }
+   */
+  @Post("wallet-reveal")
+  @HttpCode(HttpStatus.OK)
+  async walletReveal(@Body() dto: MeDto) {
+    if (!dto?.email) return { ok: false, error: "email required" };
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { email: dto.email.toLowerCase() },
+      });
+      if (!user) return { ok: false, error: "User not found" };
+      if (user.walletRevealed) {
+        return {
+          ok: true,
+          alreadyRevealed: true,
+          address: user.walletAddress,
+        };
+      }
+      if (!user.walletKey) {
+        return {
+          ok: false,
+          error: "No wallet key stored. Please re-onboard.",
+        };
+      }
+      return {
+        ok: true,
+        address: user.walletAddress,
+        privateKey: user.walletKey,
+        network: "ARC_TESTNET",
+      };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  }
+
+  /**
+   * Confirm the user has saved their private key. Wipes the plaintext
+   * key from the database. After this, the user can only get their
+   * earnings by importing the key they saved.
+   *
+   * Body: { email: string }
+   */
+  @Post("wallet-confirm")
+  @HttpCode(HttpStatus.OK)
+  async walletConfirm(@Body() dto: MeDto) {
+    if (!dto?.email) return { ok: false, error: "email required" };
+    try {
+      const updated = await this.prisma.user.update({
+        where: { email: dto.email.toLowerCase() },
+        data: { walletRevealed: true, walletKey: null },
+      });
+      return {
+        ok: true,
+        walletRevealed: updated.walletRevealed,
+        address: updated.walletAddress,
+      };
     } catch (e) {
       return { ok: false, error: (e as Error).message };
     }

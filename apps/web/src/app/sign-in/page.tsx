@@ -108,10 +108,17 @@ export default function SignInPage() {
       if (d.user) {
         localStorage.setItem("nanoproof-user", JSON.stringify(d.user));
         localStorage.setItem("nanoproof-role", d.user.role);
-        // Existing user → go to their dashboard
         setStep("redirect");
         setTimeout(() => {
-          router.push(d.user.role === "creator" ? "/creator" : "/supporter");
+          // Existing user → if they haven't saved their wallet yet, send
+          // them through the reveal flow first. Otherwise → dashboard.
+          const route =
+            d.user.walletRevealed
+              ? d.user.role === "creator"
+                ? "/creator"
+                : "/supporter"
+              : "/onboarding/wallet";
+          router.push(route);
         }, 600);
       } else {
         // New user → role selection
@@ -144,7 +151,9 @@ export default function SignInPage() {
       setRole(selectedRole);
       setStep("redirect");
       setTimeout(() => {
-        router.push(selectedRole === "creator" ? "/creator" : "/supporter");
+        // Route new users through the wallet reveal flow so they can save
+        // their private key before reaching the dashboard.
+        router.push("/onboarding/wallet");
       }, 600);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create profile");

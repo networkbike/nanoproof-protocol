@@ -686,16 +686,22 @@ model ProtocolMetrics {
 // -----------------------------------------------------------------------------
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  role          String
-  displayName   String?
-  walletAddress String?
-  creatorId     String?
-  supporterId   String?
-  lastLoginAt   DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String   @id @default(cuid())
+  email          String   @unique
+  role           String
+  displayName    String?
+  walletAddress  String?
+  // Plaintext 0x-prefixed hex private key for the demo (custodial).
+  // Generated server-side at sign-up, shown ONCE via /auth/wallet-reveal,
+  // then expected to be imported into MetaMask. Null after first reveal.
+  walletKey      String?
+  // Set true after the user has confirmed they've saved their key.
+  walletRevealed Boolean  @default(false)
+  creatorId      String?
+  supporterId    String?
+  lastLoginAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([role])
   @@map("users")

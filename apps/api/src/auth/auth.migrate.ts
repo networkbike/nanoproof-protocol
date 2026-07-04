@@ -1,6 +1,7 @@
 /**
  * User-table migration helper. Creates the `users` table on demand
- * if it doesn't already exist. Safe to call multiple times (idempotent).
+ * if it doesn't already exist, and ensures new columns exist for
+ * walletRevealed + walletKey (idempotent ALTERs).
  *
  * Used by:
  *  - AuthController.migrate() (POST /auth/migrate)
@@ -27,6 +28,9 @@ const DDL = `
 const INDEX_EMAIL = `CREATE UNIQUE INDEX IF NOT EXISTS "users_email_key" ON "users"("email")`;
 const INDEX_ROLE  = `CREATE INDEX IF NOT EXISTS "users_role_idx" ON "users"("role")`;
 
+const ALTER_WALLET_KEY      = `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "walletKey" TEXT`;
+const ALTER_WALLET_REVEALED = `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "walletRevealed" BOOLEAN NOT NULL DEFAULT false`;
+
 export class AuthMigrate {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -35,6 +39,8 @@ export class AuthMigrate {
       await this.prisma.$executeRawUnsafe(DDL);
       await this.prisma.$executeRawUnsafe(INDEX_EMAIL);
       await this.prisma.$executeRawUnsafe(INDEX_ROLE);
+      await this.prisma.$executeRawUnsafe(ALTER_WALLET_KEY);
+      await this.prisma.$executeRawUnsafe(ALTER_WALLET_REVEALED);
       return { ok: true, message: "users table ensured" };
     } catch (e) {
       return { ok: false, message: (e as Error).message };
