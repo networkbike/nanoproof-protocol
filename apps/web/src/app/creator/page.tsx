@@ -67,13 +67,31 @@ export default function CreatorDashboard() {
     const s = JSON.parse(stored) as Session;
     setSession(s);
 
-    // Load user record from localStorage (saved during sign-in)
+    // Load user record from localStorage first (instant), then refresh
+    // from the backend's /auth/me so the dashboard always shows the
+    // current displayName + role straight from the database.
     const userStored = localStorage.getItem("nanoproof-user");
     if (userStored) {
       try {
         setUser(JSON.parse(userStored) as User);
       } catch { /* ignore */ }
     }
+    void (async () => {
+      try {
+        const r = await fetch("/api/auth/me", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: s.email }),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          if (d.ok && d.user) {
+            setUser(d.user);
+            localStorage.setItem("nanoproof-user", JSON.stringify(d.user));
+          }
+        }
+      } catch { /* offline fallback — use localStorage copy */ }
+    })();
 
     loadOverview(s);
     const interval = setInterval(() => loadOverview(s), 12_000);

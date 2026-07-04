@@ -79,6 +79,23 @@ export default function SupporterDashboard() {
         setUser(JSON.parse(userStored) as User);
       } catch { /* ignore */ }
     }
+    // Refresh from backend /auth/me so displayName+role reflect the database
+    void (async () => {
+      try {
+        const r = await fetch("/api/auth/me", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: s.email }),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          if (d.ok && d.user) {
+            setUser(d.user);
+            localStorage.setItem("nanoproof-user", JSON.stringify(d.user));
+          }
+        }
+      } catch { /* offline fallback */ }
+    })();
 
     load(s);
     const interval = setInterval(() => load(s), 12_000);
