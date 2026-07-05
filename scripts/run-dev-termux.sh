@@ -97,10 +97,10 @@ mkdir -p "$DATA_DIR"
 cd "$REPO_DIR"
 
 # Pane 1: pglite database
-PANE_DB='cd apps/api && ./node_modules/.bin/pglite-server --port=5432 --database=nano-local --data-dir=$HOME/nanoproof-data 2>&1 | tee /tmp/pglite.log'
+PANE_DB='cd apps/api && ./node_modules/.bin/pglite-server --port=5432 --db=$HOME/nanoproof-data 2>&1 | tee /tmp/pglite.log'
 
 # Pane 2: migrations + seed (waits for pglite to be ready)
-PANE_MIGRATE='export DATABASE_URL=postgresql://root@127.0.0.1:5432/nano-local
+PANE_MIGRATE='export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
 cd apps/api
 echo "==> waiting for pglite to come up…"
 for i in $(seq 1 30); do
@@ -114,12 +114,12 @@ echo "==> seed (demo creators + wallets + sources)"
 ./node_modules/.bin/tsx prisma/seed.ts || true
 echo ""
 echo "==> seed-citations (real-world citations + Arc settlements)"
-cd .. && DATABASE_URL=postgresql://root@127.0.0.1:5432/nano-local node scripts/seed-citations.js || true
+cd .. && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres node scripts/seed-citations.js || true
 echo ""
 echo "✅ migrations + seed complete — keep this pane open to see logs."'
 
 # Pane 3: API (background, no color so it reads well in a recording)
-PANE_API='cd apps/api && DATABASE_URL=postgresql://root@127.0.0.1:5432/nano-local PORT=4000 node dist/main.js 2>&1 | tee /tmp/api.log'
+PANE_API='cd apps/api && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres PORT=4000 node dist/main.js 2>&1 | tee /tmp/api.log'
 
 # Pane 4: Web dashboard
 PANE_WEB='cd apps/web && NEXT_PUBLIC_API_URL=http://127.0.0.1:4000 pnpm dev 2>&1 | tee /tmp/web.log'

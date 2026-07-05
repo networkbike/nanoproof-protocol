@@ -113,9 +113,11 @@ NODE_ENV=development
 PORT=4000
 LOG_LEVEL=info
 
-# pglite (Postgres in WASM) on the loopback — matches install-termux.sh
-DATABASE_URL=postgresql://root@127.0.0.1:5432/nano-local
-DATABASE_SHADOW_URL=postgresql://root@127.0.0.1:5432/nano-local
+# pglite (Postgres in WASM) on the loopback — default user/pass is
+# postgres/postgres, no password check; single-database 'postgres' is
+# what pglite-socket reports back.
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
+DATABASE_SHADOW_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
 DATABASE_POOL_SIZE=5
 DATABASE_POOL_TIMEOUT_MS=5000
 
@@ -177,8 +179,7 @@ ${C_GREEN}NanoProof is installed. To run it:
 
   Tab 1 — database (pglite):
     cd $REPO_DIR/apps/api
-    ./node_modules/.bin/pglite-server --port=5432 --database=nano-local \\
-      --data-dir=\$HOME/nanoproof-data
+    ./node_modules/.bin/pglite-server --port=5432 --db=\$HOME/nanoproof-data
 
   Tab 2 — migrations + seed (one-time after first DB start):
     cd $REPO_DIR

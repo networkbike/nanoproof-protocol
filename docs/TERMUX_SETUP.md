@@ -118,11 +118,7 @@ Open a **second Termux session** (swipe from the left edge → "New session", or
 ```bash
 cd ~/nanoproof-protocol/apps/api
 # Use the project's already-installed binary
-./node_modules/.bin/pglite-server --port=5432 --database=nano-local &
-# Or, more robust on Termux, give it a writable data dir:
-mkdir -p ~/nanoproof-data
-./node_modules/.bin/pglite-server --port=5432 --user=root --database=nano-local \
-    --data-dir=$HOME/nanoproof-data
+./node_modules/.bin/pglite-server --port=5432 --db=$HOME/nanoproof-data 2>&1
 
 # You should see something like:
 #   [pglite-socket] listening at 127.0.0.1:5432 (database: nano-local)
@@ -146,9 +142,10 @@ NODE_ENV=development
 PORT=4000
 LOG_LEVEL=info
 
-# pglite on 127.0.0.1:5432
-DATABASE_URL=postgresql://root@127.0.0.1:5432/nano-local
-DATABASE_SHADOW_URL=postgresql://root@127.0.0.1:5432/nano-local
+# pglite on 127.0.0.1:5432 — pglite-socket uses user=postgres, db=postgres
+# (configurable only via the password; user always 'postgres').
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
+DATABASE_SHADOW_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
 DATABASE_POOL_SIZE=5
 DATABASE_POOL_TIMEOUT_MS=5000
 
@@ -324,7 +321,7 @@ Suggested Termux display setup:
 tmux new -s demo \; \
   send-keys 'cd ~/nanoproof-protocol/apps/api && node dist/main.js' C-m \; \
   split-window -v \; \
-  send-keys 'cd ~/nanoproof-protocol/apps/api && ./node_modules/.bin/pglite-server --port=5432 --database=nano-local --data-dir=$HOME/nanoproof-data' C-m \; \
+  send-keys 'cd ~/nanoproof-protocol/apps/api && ./node_modules/.bin/pglite-server --port=5432 --db=$HOME/nanoproof-data' C-m \; \
   attach
 ```
 
@@ -359,6 +356,31 @@ Also check the file completed downloading — phones sometimes interrupt big dow
 ---
 
 ## If the original installation issues persist
+
+### `pglite-server` ERR_PARSE_ARGS_UNKNOWN_OPTION
+
+pglite-server (in `@electric-sql/pglite-socket` >= 0.2.x) uses Node's
+`parseArgs` strictly, and recent versions added several new flags. The
+correct set of flags is:
+
+```bash
+./node_modules/.bin/pglite-server --port=5432 --db=$HOME/nanoproof-data
+```
+
+Not `--port` + `--database` + `--data-dir`. The latter fail with:
+
+```
+ERR_PARSE_ARGS_UNKNOWN_OPTION
+    at parseArgs (node:internal)
+```
+
+If you're on Termux with Node 24 (now the default `nodejs-lts`), this
+fires on first call. Fix: pull the latest nanoproof-protocol (the
+`scripts/install-termux.sh` and `scripts/run-dev-termux.sh` now pass
+the right flag), then re-run.
+
+> Node 24 also works fine — only the **flag names** changed, not the
+> underlying pglite server behavior.
 
 ### `pglite-server` binary won't start / "incompatible architecture"
 
@@ -405,7 +427,7 @@ netstat -tlnp 2>/dev/null | grep 5432
 Kill the old process, or change the port:
 
 ```bash
-./node_modules/.bin/pglite-server --port=5433 --database=nano-local --data-dir=$HOME/nanoproof-data
+./node_modules/.bin/pglite-server --port=5433 --db=$HOME/nanoproof-data
 # And update DATABASE_URL=postgresql://root@127.0.0.1:5433/nano-local
 ```
 
@@ -424,7 +446,8 @@ pglite is single-process. If you started it twice on the same data dir, kill all
 pkill -f pglite-server
 sleep 1
 cd ~/nanoproof-protocol/apps/api
-./node_modules/.bin/pglite-server --port=5432 --database=nano-local --data-dir=$HOME/nanoproof-data &
+./node_modules/.bin/pglite-server --port=5432 --db=$HOME/nanoproof-data 2>&1 &
+
 ```
 
 ### `prisma migrate deploy` complains about missing shadows
