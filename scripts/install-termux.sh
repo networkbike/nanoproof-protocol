@@ -89,10 +89,20 @@ git fetch --depth 1 origin main >/dev/null 2>&1 && \
 ok "repo at $REPO_DIR, HEAD $(git rev-parse --short HEAD)"
 
 step "Step 4/7 — Install JS deps (5–15 min — this is the slow step)"
-# --no-audit --no-fund = ~30% faster, no banner spam
-# --ignore-scripts = skip native build steps that fail on Termux (we don't need
-#   any of them; @electric-sql/pglite-socket ships a pure-JS binary)
-pnpm install --no-audit --no-fund --prefer-offline
+# pnpm >=9.15 removed the --no-audit and --no-fund CLI flags (they now live
+# in ~/.npmrc). We write them into .npmrc first, then run plain install.
+# Skip everything that tries to compile a native binary (none of our deps
+# need it; pglite-socket and prisma are both pure-JS).
+cat > .npmrc <<'NPMRC'
+audit=false
+fund=false
+verify-store-integrity=false
+auto-install-peers=true
+node-linker=isolated
+NPMRC
+ok "wrote .npmrc (disables audit/fund/store-integrity checks)"
+
+pnpm install --prefer-offline
 ok "pnpm install complete"
 
 step "Step 5/7 — Write .env files (demo auth + pglite)"
