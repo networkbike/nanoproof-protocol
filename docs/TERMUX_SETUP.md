@@ -2,7 +2,9 @@
 
 **Goal:** Get the full NanoProof Protocol stack running on your Android phone via Termux, so you can screen-record a real walkthrough — not a mocked demo. Includes the database, the API, the web dashboard, AND a working x402 → Arc USDC payment flow.
 
-> Time to first demo: **~15 minutes** on a modern phone (Pixel 7 / Galaxy S22 / equivalent). Slower phones take ~25 minutes for the `pnpm install` step.
+> Time to first demo: **~15 minutes** on a modern phone (Pixel 7 / Galaxy S22 / equivalent). Slower phones take ~25 minutes for the `npm install` step.
+
+> **Terminal:** Use **Termux** (Android, F-Droid or GitHub APK), then run `bash scripts/termux-install-fast.sh` once. After that, three Termux tabs (pglite, api, web) and Chrome on `http://127.0.0.1:3000` give you the full local stack.
 
 ---
 
