@@ -77,6 +77,8 @@ npm install --no-audit --no-fund --no-package-lock --legacy-peer-deps --loglevel
 ok "shared deps installed"
 
 step "4/9 — Build packages/shared (npm has no workspace linking; we pre-compile)"
+# Wipe incremental build cache so we get a fresh emit every run
+rm -rf dist tsconfig.tsbuildinfo .tsbuildinfo 2>/dev/null
 npm run build 2>&1 | tail -5
 [ -f dist/index.js ] || fail "packages/shared/dist/index.js not built"
 ok "shared/dist built"
@@ -103,12 +105,14 @@ node node_modules/prisma/build/index.js generate 2>&1 | tail -5
 ok "Prisma client generated"
 
 step "8/9 — Build apps/api (NestJS)"
+# Wipe incremental build cache for a fresh emit
+rm -rf dist tsconfig.tsbuildinfo 2>/dev/null
 node node_modules/@nestjs/cli/bin/nest.js build 2>&1 | tail -10
 [ -f dist/apps/api/src/main.js ] || fail "dist/apps/api/src/main.js not built"
 ok "dist/apps/api/src/main.js built"
 
 step "9/9 — Set up database and seed"
-mkdir -p "$HOME/nanoproof-data"
+mkdir -p "$HOME/nanoproof-data" "$HOME/nano-logs"
 # Make sure .env exists with the correct DATABASE_URL
 if [ ! -f .env ]; then
   cat > .env <<'ENVEOF'
@@ -130,17 +134,27 @@ ENVEOF
 fi
 
 # Start pglite in background, run migrate, then stop it
-./node_modules/.bin/pglite-server --port=5432 --db="$HOME/nanoproof-data" > /tmp/pglite.log 2>&1 &
-PGLITE_PID=$!
-sleep 3
-for i in $(seq 1 20); do
-  if (echo > /dev/tcp/127.0.0.1/5432) 2>/dev/null; then break; fi
+# Try the bin symlink first, fall back to direct node path (Termux FUSE quirks)
+PGLITE_CMD=""
+if [ -x ./node_modules/.bin/pglite-server ]; then
+  PGLITE_CMD="./node_modules/.bin/pglite-server"
+elif [ -f node_modules/@electric-sql/pglite-socket/dist/scripts/server.js ]; then
+  PGLITE_CMD="node node_modules/@electric-sql/pglite-socket/dist/scripts/server.js"
+fi
+[ -z "$PGLITE_CMD" ] && warn "could not find pglite-server binary; migrations will fail"
+if [ -n "$PGLITE_CMD" ]; then
+  $PGLITE_CMD --port=5432 --db="$HOME/nanoproof-data" > "$HOME/nano-logs/pglite-install.log" 2>&1 &
+  PGLITE_PID=$!
+  sleep 3
+  for i in $(seq 1 20); do
+    if (echo > /dev/tcp/127.0.0.1/5432) 2>/dev/null; then break; fi
+    sleep 1
+  done
+  DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres node node_modules/prisma/build/index.js migrate deploy 2>&1 | tail -5
+  ok "migrations applied"
+  kill $PGLITE_PID 2>/dev/null
   sleep 1
-done
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres node node_modules/prisma/build/index.js migrate deploy 2>&1 | tail -5
-ok "migrations applied"
-kill $PGLITE_PID 2>/dev/null
-sleep 1
+fi
 
 ok "ALL 9 STEPS COMPLETE"
 echo ""
@@ -152,7 +166,9 @@ echo "To run the full stack, open three more Termux tabs."
 echo ""
 echo "  Tab 1 (database) — paste this:"
 echo "    cd $REPO_DIR/apps/api"
-echo "    ./node_modules/.bin/pglite-server --port=5432 --db=\$HOME/nanoproof-data"
+echo "    # If ./node_modules/.bin/pglite-server fails to start, use:"
+echo "    #   node node_modules/@electric-sql/pglite-socket/dist/scripts/server.js --port=5432 --db=\$HOME/nanoproof-data"
+echo "    ./node_modules/.bin/pglite-server --port=5432 --db=\$HOME/nanoproof-data 2>&1 | tee \$HOME/nano-logs/pglite.log"
 echo "    # leave running; you should see: 'PGLiteSocketServer listening on {...port 5432...}'"
 echo ""
 echo "  Tab 2 (api) — paste this AFTER Tab 1 is up:"
