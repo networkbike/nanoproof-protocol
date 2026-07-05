@@ -21,7 +21,12 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
-  binaryTargets   = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+  // No binaryTargets: we use the @prisma/adapter-pg driver at runtime
+  // (see apps/api/src/prisma/prisma.service.ts), which never loads the
+  // query engine binary. Defining binaryTargets here would force
+  // `prisma generate` to download engine binaries for every target,
+  // and on Termux (aarch64-Bionic libc) the registry fetch hangs for
+  // hours because there's no prebuilt engine that matches the runtime.
 }
 
 datasource db {
