@@ -92,12 +92,15 @@ by Arc settlement proofs and ArcScan verification.
 - [`docs/PAYMENT_FLOW.md`](./docs/PAYMENT_FLOW.md) — full request lifecycle
 - [`docs/ARC_SETTLEMENT.md`](./docs/ARC_SETTLEMENT.md) — settlement proof + ArcScan verification
 - [`docs/API_REFERENCE.md`](./docs/API_REFERENCE.md) — complete REST API reference
+- [`docs/TERMUX_SETUP.md`](./docs/TERMUX_SETUP.md) — **running locally on Android Termux** (pglite, no Docker)
 
 Earlier phases: Phase 0 (MVP) → Phase 2 (Creator Registry) → Phase 3 (Citation Engine) →
 Phase 4 (Payment Engine) → Phase 5 (Lepton Demo) → Phase 6 (Analytics Dashboard) →
 Phase 7 (Deployment configs) → **Phase 8 (x402 + Arc Settlement Proof)**.
 
 ## Quickstart (5 minutes)
+
+> **No Docker?** See [`docs/TERMUX_SETUP.md`](./docs/TERMUX_SETUP.md) for the pglite-based Termux path.
 
 ```bash
 # 1. Install
