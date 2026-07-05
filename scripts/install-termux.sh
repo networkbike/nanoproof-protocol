@@ -52,18 +52,40 @@ pkg install -y \
 ok "apt packages installed"
 
 step "Step 2/7 — Install pnpm globally (30 s)"
-npm install -g pnpm@9 >/dev/null 2>&1 || warn "pnpm install had warnings (usually fine)"
+# Termux sometimes has a leftover /usr/bin/pnpx (from an old npm install
+# of pnpm 7.x). 'npm install -g' refuses to overwrite without --force.
+# Clear those bin entries first, then force-install the new pnpm 9.
+
+for stale in pnpm pnpx; do
+  if [[ -f "$PREFIX/bin/$stale" ]]; then
+    warn "removing stale $PREFIX/bin/$stale (left over from an old pnpm install)"
+    rm -f "$PREFIX/bin/$stale"
+  fi
+done
+
+# Also clear any npm cache stubs that can re-create the symlink on next install
+npm cache clean --force >/dev/null 2>&1 || true
+
+npm install -g pnpm@9 --force >/dev/null 2>&1 || {
+  warn "pnpm install had warnings; retrying without --force"
+  npm install -g pnpm@9 || fail "pnpm install failed; see errors above"
+}
 pnpm --version | grep -E '^9\.' || fail "pnpm 9.x not on PATH — got $(pnpm --version 2>&1)"
 ok "pnpm $(pnpm --version)"
 
 step "Step 3/7 — Clone nanoproof-protocol (30 s on wifi)"
 REPO_DIR="$HOME/nanoproof-protocol"
 if [[ -d "$REPO_DIR" ]]; then
-  warn "$REPO_DIR exists; skipping clone (delete it to re-clone)"
+  warn "$REPO_DIR already exists — reusing it (delete it manually to re-clone)"
+  warn "    cd $REPO_DIR && git pull --ff-only    # to pick up latest commits"
 else
-  git clone --depth 1 https://github.com/networkbike/nanoproof-protocol.git "$REPO_DIR"
+  git clone --depth 1 https://github.com/networkbike/nanoproof-protocol.git "$REPO_DIR" \
+    || fail "git clone failed (check network / DNS)"
 fi
 cd "$REPO_DIR"
+# make sure we are on a known-good commit and pull latest
+git fetch --depth 1 origin main >/dev/null 2>&1 && \
+  git reset --hard origin/main >/dev/null 2>&1 || true
 ok "repo at $REPO_DIR, HEAD $(git rev-parse --short HEAD)"
 
 step "Step 4/7 — Install JS deps (5–15 min — this is the slow step)"
