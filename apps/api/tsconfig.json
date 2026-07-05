@@ -27,6 +27,6 @@
       "@nanoproof/shared/*": ["../../packages/shared/src/*"]
     }
   },
-  "include": ["src/**/*", "test/**/*"],
-  "exclude": ["node_modules", "dist", ".turbo"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", ".turbo", "test"]
 }

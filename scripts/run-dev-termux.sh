@@ -75,12 +75,17 @@ if [[ ! -x "$REPO_DIR/apps/api/node_modules/.bin/pglite-server" ]]; then
   cd "$REPO_DIR"
   pnpm install --prefer-offline
 fi
+if [[ ! -d "$REPO_DIR/apps/api/node_modules/.prisma/client" ]]; then
+  warn ".prisma/client not generated — running db:generate"
+  cd "$REPO_DIR"
+  pnpm --filter @nanoproof/api db:generate
+fi
 if [[ ! -d "$REPO_DIR/apps/api/dist" ]]; then
   warn "apps/api not built — running pnpm build for the api"
   cd "$REPO_DIR"
   pnpm --filter @nanoproof/api build
 fi
-ok "dependencies + build verified"
+ok "dependencies + prisma client + build verified"
 
 step "Step 4/4 — Start tmux with 2×2 pane grid"
 
