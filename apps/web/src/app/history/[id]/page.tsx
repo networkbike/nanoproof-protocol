@@ -115,6 +115,7 @@ export default function ProofDetailPage({ params }: { params: Promise<{ id: stri
                 type="button"
                 onClick={reVerify}
                 disabled={verifying}
+                data-tour-id="verify-button"
                 className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded text-white"
               >
                 {verifying ? "Verifying…" : "Re-verify on ArcScan"}

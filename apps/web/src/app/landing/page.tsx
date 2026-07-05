@@ -88,7 +88,7 @@ function Logo() {
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden">
+    <section data-tour-id="landing-hero" className="relative overflow-hidden">
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(99,102,241,0.15),transparent_50%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_60%,rgba(168,85,247,0.10),transparent_50%)]" />
@@ -125,6 +125,18 @@ function Hero() {
             >
               Sign in
             </Link>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("nanoproof:open-tour"));
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-6 py-3 text-base font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100"
+            >
+              <span>🎓</span>
+              <span>Take a Tour</span>
+            </button>
           </div>
           <p className="mt-4 text-xs text-slate-500">
             No wallet. No subscription. No setup. Judge demo runs in 60 seconds.

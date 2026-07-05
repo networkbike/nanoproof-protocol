@@ -170,7 +170,7 @@ export default function CreatorDashboard() {
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div data-tour-id="creator-kpis" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Total revenue"
           value={`$${r.totalUsdcDisplay}`}
@@ -279,6 +279,19 @@ function DashboardShell({ email, onSignOut, children }: { email: string; onSignO
           </div>
           <div className="flex items-center gap-3">
             {email && <span className="hidden text-xs text-slate-500 md:inline">{email}</span>}
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("nanoproof:open-tour"));
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+              title="Take the guided tour"
+            >
+              <span>🎓</span>
+              <span>Take a Tour</span>
+            </button>
             <button onClick={onSignOut} className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
               Sign out
             </button>

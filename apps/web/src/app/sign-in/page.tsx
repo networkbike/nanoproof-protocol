@@ -222,6 +222,7 @@ export default function SignInPage() {
         )}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
+          <div data-tour-id="signin-cta" />
           {step === "email" && (
             <EmailStep
               email={email}
@@ -249,7 +250,9 @@ export default function SignInPage() {
             />
           )}
           {step === "role" && (
-            <RoleStep role={role} onSelect={onboardAndContinue} />
+            <div data-tour-id="role-step">
+              <RoleStep role={role} onSelect={onboardAndContinue} />
+            </div>
           )}
           {step === "redirect" && (
             <RedirectStep role={role} />

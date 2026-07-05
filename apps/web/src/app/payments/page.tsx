@@ -209,7 +209,7 @@ export default function PaymentsPage(): React.ReactElement {
 
         {/* Creator selection + controls */}
         <section className="grid lg:grid-cols-2 gap-6">
-          <Card className="bg-slate-900/60 border-slate-700">
+          <Card data-tour-id="payments-form" className="bg-slate-900/60 border-slate-700">
             <CardHeader>
               <CardTitle className="text-slate-100">Start a payment</CardTitle>
               <CardDescription className="text-slate-400">
@@ -300,7 +300,7 @@ export default function PaymentsPage(): React.ReactElement {
           </Card>
 
           {/* Settlement result */}
-          <Card className="bg-slate-900/60 border-slate-700">
+          <Card data-tour-id="latest-settlement" className="bg-slate-900/60 border-slate-700">
             <CardHeader>
               <CardTitle className="text-slate-100 flex items-center gap-2">
                 Latest settlement
@@ -314,7 +314,15 @@ export default function PaymentsPage(): React.ReactElement {
             </CardHeader>
             <CardContent>
               {demoResult ? (
-                <SettlementTimeline demo={demoResult} creator={currentCreator} />
+                <>
+                  <div data-tour-id="x402-challenge" className="mb-2 text-xs uppercase tracking-wider text-indigo-300">
+                    Challenge
+                  </div>
+                  <SettlementTimeline demo={demoResult} creator={currentCreator} />
+                  <div data-tour-id="settlement-progress" className="mt-3 text-xs text-slate-400">
+                    Auto-settled via EIP-3009 transferWithAuthorization
+                  </div>
+                </>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-700 bg-slate-950/50 p-6 text-center space-y-3">
                   <div className="mx-auto h-10 w-10 rounded-full bg-indigo-500/10 text-indigo-300 flex items-center justify-center">
