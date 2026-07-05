@@ -73,12 +73,21 @@ export function TourProvider({
     }
   });
 
-  // Auto-launch on first visit
+  // Auto-launch on first visit. Skipped on auth flows so the tour overlay
+  // never blocks the email/OTP/role step where the user has to click.
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const alreadyShown = localStorage.getItem(AUTO_KEY);
       if (!alreadyShown && !completed) {
+        const path = window.location.pathname;
+        const skipAutoOn = ["/sign-in", "/onboarding/wallet"];
+        if (skipAutoOn.some((p) => path.startsWith(p))) {
+          // Mark auto-shown so we don't keep trying on subsequent renders,
+          // but don't actually open the tour.
+          localStorage.setItem(AUTO_KEY, "skipped");
+          return;
+        }
         // Slight delay so the page renders first
         const t = window.setTimeout(() => {
           setOpen(true);
