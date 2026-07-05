@@ -56,6 +56,8 @@ export default function SignInPage() {
     setError(null);
     setErrorHint(null);
     setInfo(null);
+    // eslint-disable-next-line no-console
+    console.log("[sign-in] sendOtp click", { email, status });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError("Please enter a valid email address.");
       return;
@@ -68,6 +70,8 @@ export default function SignInPage() {
         body: JSON.stringify({ email }),
       });
       const d = await r.json();
+      // eslint-disable-next-line no-console
+      console.log("[sign-in] sendOtp response", { status: r.status, body: d });
       if (!r.ok || !d.ok) {
         setError(d.error || "Failed to send OTP");
         setErrorHint(d.hint || null);
@@ -76,6 +80,8 @@ export default function SignInPage() {
       setInfo(`A 6-digit code has been sent to ${email}. It expires in ${Math.floor((d.ttl || 300) / 60)} minutes.`);
       setStep("otp");
     } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[sign-in] sendOtp threw", err);
       setError(err instanceof Error ? err.message : "Failed to send OTP");
     } finally {
       setLoading(false);
@@ -223,6 +229,16 @@ export default function SignInPage() {
 
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
           <div data-tour-id="signin-cta" />
+          <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono text-slate-600">
+            {statusLoading
+              ? "Checking auth status…"
+              : statusError
+                ? `⚠ ${statusError}`
+                : status?.configured
+                  ? `✓ Auth ready · provider=${status.provider} · mode=${status.mode}`
+                  : "⚠ Auth not configured"}
+            {loading ? " · sending…" : ""}
+          </div>
           {step === "email" && (
             <EmailStep
               email={email}
@@ -231,7 +247,7 @@ export default function SignInPage() {
               loading={loading}
               error={error}
               errorHint={errorHint}
-              disabled={!status?.configured}
+              disabled={false}
             />
           )}
           {step === "otp" && (
