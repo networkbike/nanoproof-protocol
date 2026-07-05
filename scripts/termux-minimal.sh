@@ -62,6 +62,25 @@ time npm install --no-audit --no-fund --no-package-lock --loglevel=warn 2>&1 | t
 [ -d node_modules/@nestjs ] || fail "apps/api/node_modules/@nestjs missing — install failed"
 ok "apps/api has @nestjs/*"
 
+# npm sometimes leaves node_modules/.bin/ without 'nest' symlinks
+echo "  relinking node_modules/.bin/ ..."
+rm -rf node_modules/.bin; mkdir -p node_modules/.bin
+node -e "
+const fs=require('fs'),path=require('path');
+function linkBins(pkgDir,seen){
+  if(seen.has(pkgDir))return;seen.add(pkgDir);
+  try{const pkg=JSON.parse(fs.readFileSync(path.join(pkgDir,'package.json'),'utf8'));
+    if(pkg.bin){const e=typeof pkg.bin==='string'?{[pkg.name.split('/').pop()]:pkg.bin}:pkg.bin;
+      for(const[n,r] of Object.entries(e)){const s=path.join(pkgDir,r),d=path.join(pkgDir,'..','.bin',n);
+        if(fs.existsSync(s)&&!fs.existsSync(d))try{fs.symlinkSync(path.relative(path.dirname(d),s),d);}catch(_){}}}
+  }catch(_){}
+  for(const x of fs.readdirSync(pkgDir,{withFileTypes:true}))if(x.isDirectory()&&x.name[0]!=='.'&&x.name!=='node_modules')linkBins(path.join(pkgDir,x.name),seen);
+}
+linkBins('node_modules',new Set());
+"
+[ -L node_modules/.bin/nest ] || [ -f node_modules/.bin/nest ] || fail "after relink, nest still missing"
+ok "node_modules/.bin linked"
+
 step "6. Generate Prisma client (this writes apps/api/node_modules/.prisma/client)"
 time ./node_modules/.bin/prisma generate 2>&1 | tail -10
 [ -d node_modules/.prisma/client ] || fail ".prisma/client not written — prisma generate failed"
