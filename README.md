@@ -100,7 +100,9 @@ Phase 7 (Deployment configs) → **Phase 8 (x402 + Arc Settlement Proof)**.
 
 ## Quickstart (5 minutes)
 
-> **No Docker?** See [`docs/TERMUX_SETUP.md`](./docs/TERMUX_SETUP.md) for the pglite-based Termux path.
+Two paths — pick yours below.
+
+### 🟢 Path A: Linux / Mac with Docker (laptop or dev box)
 
 ```bash
 # 1. Install
@@ -122,6 +124,32 @@ pnpm dev
 # → api: http://localhost:4000  (Swagger UI at /docs)
 # → web: http://localhost:3000
 ```
+
+### 📱 Path B: Android phone via Termux (one command)
+
+```bash
+# In Termux on Android (F-Droid or GitHub APK):
+cd ~/nanoproof-protocol
+bash scripts/termux-install-fast.sh   # ~15 min on cellular
+
+# Then in three separate Termux tabs:
+#   Tab 1: cd ~/nanoproof-protocol/apps/api && ./node_modules/.bin/pglite-server --port=5432 --db=$HOME/nanoproof-data
+#   Tab 2: cd ~/nanoproof-protocol/apps/api && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres PORT=4000 node dist/apps/api/src/main.js
+#   Tab 3: cd ~/nanoproof-protocol/apps/web && NEXT_PUBLIC_API_URL=http://127.0.0.1:4000 npm run dev
+
+# Chrome on the phone → http://127.0.0.1:3000
+```
+
+The Termux path uses **pglite** (Postgres compiled to WASM) so no Docker is needed.
+Full step-by-step guide: **[docs/TERMUX_SETUP.md](./docs/TERMUX_SETUP.md)**.
+
+### ☁️ Path C: zero-install — use the live demo
+
+```
+https://nanoproof-web-production.up.railway.app/landing
+```
+
+No install, no Termux — the deployed production instance.
 
 ## Try the simulator
 
