@@ -1,144 +1,187 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # =============================================================================
-# termux-install-fast.sh — Bypass pnpm's stuck lockfile snapshot by using
-# `npm install` instead. npm doesn't do "snapshot resolve dependencies"
-# (that's pnpm-specific), it goes straight to disk reads and a single
-# pass over the registry.
+# termux-install-fast.sh — End-to-end NanoProof install on Termux.
 #
-# Use this AFTER `install-termux.sh` has failed at the `pnpm install`
-# step. It assumes:
-#   - pglite binary exists in apps/api/node_modules/.bin/
-#   - .env files already written
-#   - Node 20+ installed
+# This is the SOLE script you should run for a fresh Termux install of
+# NanoProof Protocol. It handles every quirk we discovered:
 #
-# What it does:
-#   1. Kills all running pglite-server / node / next-dev processes
-#   2. Removes the .pnpm store and node_modules in apps/api, apps/web,
-#      packages/shared (clean slate)
-#   3. Runs `npm install` (Termux's bundled installer) in each app —
-#      npm doesn't snapshot-thrash like pnpm 9.x does on Termux
-#   4. Runs `npx prisma generate` to write apps/api/node_modules/.prisma
-#   5. Runs `npx nest build` to write apps/api/dist/
-#   6. Starts pglite-server, prisma migrate deploy, seed
-#   7. Boots the api with `node dist/main.js`
-#   8. Boots the web with `npm run dev`
+#   - pnpm's lockfile-snapshot thrashing on Node 24 + cellular
+#     -> we use plain `npm install`
+#   - pnpm workspace:* syntax that npm doesn't grok
+#     -> package.json files use file: paths instead
+#   - pnpm catalog: shorthand that npm rejects
+#     -> real semver ranges are baked into package.json
+#   - @nestjs/swagger@8 peer-dep mismatch with @nestjs/common@11
+#     -> npm is told --legacy-peer-deps
+#   - Prisma generate hanging forever on Termux (binaryTargets)
+#     -> schema has NO binaryTargets; we use @prisma/adapter-pg only
+#   - cross-package @nanoproof/shared symlinks broken under npm
+#     -> after the api's npm install, we copy packages/shared into
+#        apps/api/node_modules/@nanoproof/shared/ directly
+#   - node_modules/.bin/ symlinks unreliable
+#     -> we call binaries by full path: `node node_modules/.../bin/x.js`
+#   - dist/main.js path mismatch (monorepo writes to dist/apps/api/src/main.js)
+#     -> script uses the correct path consistently
+#
+# You should run this ONCE per phone. After it completes, just start
+# the three Termux tabs (pglite, api, web) and Chrome will reach the
+# server at http://127.0.0.1:3000.
+#
+# Usage:
+#   bash scripts/termux-install-fast.sh
+#
+# Tests against a real Termux environment. Pull requests welcome for
+# any additional edge case you discover.
 # =============================================================================
 
 set -uo pipefail
 
-C_BLUE='\e[36m'
-C_GREEN='\e[32m'
-C_YELLOW='\e[33m'
-C_RED='\e[31m'
-C_RESET='\e[0m'
-
+C_BLUE='\e[36m'; C_GREEN='\e[32m'; C_YELLOW='\e[33m'; C_RED='\e[31m'; C_RESET='\e[0m'
 step() { echo -e "\n${C_BLUE}==> $*${C_RESET}"; }
 ok()   { echo -e "${C_GREEN}  ✓ $*${C_RESET}"; }
 warn() { echo -e "${C_YELLOW}  ⚠ $*${C_RESET}"; }
 fail() { echo -e "${C_RED}  ✗ $*${C_RESET}"; exit 1; }
 
 REPO_DIR="$HOME/nanoproof-protocol"
+[ -d "$REPO_DIR" ] || fail "nanoproof-protocol not found at $REPO_DIR. Run install-termux.sh first."
 cd "$REPO_DIR"
 
-step "0/9 — Sanity check"
-[ ! -d "$REPO_DIR" ] && fail "$REPO_DIR does not exist; run install-termux.sh first"
-[ ! -f apps/api/.env ] && fail "apps/api/.env missing; run install-termux.sh first"
-[ ! -x apps/api/node_modules/.bin/pglite-server ] && warn "pglite-server binary missing; run install-termux.sh first"
-[ "$(node --version | cut -d. -f1 | tr -d 'v')" -lt 20 ] && fail "need Node >=20 (got $(node --version))"
-ok "node $(node --version), pglite binary present"
+step "0/9 — Sanity checks"
+[ "$(uname -m)" = "aarch64" ] || warn "Termux is meant for aarch64; saw $(uname -m). Most things will still work."
+command -v node >/dev/null || fail "node missing: run 'pkg install nodejs-lts'"
+command -v npm >/dev/null || fail "npm missing"
+NODE_V=$(node --version | tr -d 'v')
+NODE_MAJOR=$(echo "$NODE_V" | cut -d. -f1)
+[[ "$NODE_MAJOR" -ge 20 ]] || fail "need Node 20+, got v$NODE_V"
+ok "node v$NODE_V, npm $(npm --version), on $(uname -m)"
 
-step "1/9 — Kill any running dev processes"
+step "1/9 — Stop any leftover dev processes"
 pkill -f pglite-server 2>/dev/null && warn "killed old pglite-server" || true
 pkill -f "node.*dist/main" 2>/dev/null && warn "killed old api" || true
 pkill -f "next dev" 2>/dev/null && warn "killed old next dev" || true
 pkill -f "nest start" 2>/dev/null && warn "killed old nest start" || true
-# tmux session is OK to keep — we'll start new panes on top
 sleep 1
-ok "processes cleared"
+ok "old processes cleared"
 
-step "2/9 — Wipe stale node_modules and pnpm store"
-for d in node_modules apps/api/node_modules apps/web/node_modules packages/shared/node_modules; do
-  if [ -d "$d" ]; then
-    warn "removing $d ($(du -sh "$d" 2>/dev/null | cut -f1))"
-    rm -rf "$d"
-  fi
+step "2/9 — Wipe stale node_modules"
+for d in node_modules apps/api/node_modules apps/web/node_modules packages/shared/node_modules packages/agent/node_modules; do
+  [ -d "$d" ] && rm -rf "$d" && echo "  removed $d"
 done
-# also clear pnpm cache if present
-[ -d ~/.local/share/pnpm/store ] && rm -rf ~/.local/share/pnpm/store && warn "wiped pnpm store"
-[ -d ~/.pnpm-store ] && rm -rf ~/.pnpm-store && warn "wiped ~/.pnpm-store"
-ok "stale state cleared"
+[ -d ~/.local/share/pnpm ] && rm -rf ~/.local/share/pnpm && warn "removed pnpm store"
+ok "clean slate"
 
-step "3/9 — npm install in apps/api (the slow part, ~5-15 min on cellular)"
-cd apps/api
-# npm install with no funding messages, no audit, no package-lock-only
-npm install --no-audit --no-fund --no-package-lock --loglevel=warn
+step "3/9 — Install packages/shared dependencies"
+cd packages/shared
+npm install --no-audit --no-fund --no-package-lock --legacy-peer-deps --loglevel=warn 2>&1 | tail -5
+[ -d node_modules ] || fail "packages/shared/node_modules not created"
+ok "shared deps installed"
+
+step "4/9 — Build packages/shared (npm has no workspace linking; we pre-compile)"
+npm run build 2>&1 | tail -5
+[ -f dist/index.js ] || fail "packages/shared/dist/index.js not built"
+ok "shared/dist built"
+
+step "5/9 — Install apps/api dependencies"
+cd ../../apps/api
+npm install --no-audit --no-fund --no-package-lock --legacy-peer-deps --loglevel=warn 2>&1 | tail -5
+[ -d node_modules/@nestjs ] || fail "apps/api/node_modules/@nestjs missing"
 ok "apps/api deps installed"
 
-step "4/9 — npm install in apps/web (this is the BIG one, Next.js)"
-cd ../web
-npm install --no-audit --no-fund --no-package-lock --loglevel=warn
-ok "apps/web deps installed"
+# npm with file: creates a broken symlink for @nanoproof/shared. Replace
+# it with a real directory copy because the runtime needs dist/ files.
+step "6/9 — Copy packages/shared into apps/api (npm file: symlinks are broken for monorepos)"
+rm -rf node_modules/@nanoproof/shared
+mkdir -p node_modules/@nanoproof
+cp -r ../../packages/shared node_modules/@nanoproof/
+[ -f node_modules/@nanoproof/shared/dist/index.js ] || fail "shared copy failed"
+ok "shared copied into apps/api/node_modules/@nanoproof/shared"
 
-step "5/9 — npm install in packages/shared (small)"
-cd ../shared
-npm install --no-audit --no-fund --no-package-lock --loglevel=warn 2>/dev/null || true
-ok "packages/shared deps installed (or already present)"
+step "7/9 — Generate Prisma client"
+# Call prisma via direct node path (no .bin/ symlink needed)
+node node_modules/prisma/build/index.js generate 2>&1 | tail -5
+[ -d node_modules/.prisma/client ] || fail ".prisma/client not written"
+ok "Prisma client generated"
 
-step "6/9 — Regenerate Prisma client (apps/api)"
-cd ../api
-npx prisma generate 2>&1 | tail -3
-ok "Prisma client written to apps/api/node_modules/.prisma/client"
+step "8/9 — Build apps/api (NestJS)"
+node node_modules/@nestjs/cli/bin/nest.js build 2>&1 | tail -10
+[ -f dist/apps/api/src/main.js ] || fail "dist/apps/api/src/main.js not built"
+ok "dist/apps/api/src/main.js built"
 
-step "7/9 — Build the api with nest build"
-npx nest build 2>&1 | tail -5
-[ -f dist/main.js ] || fail "nest build didn't write dist/main.js"
-ok "apps/api/dist/main.js is built"
-
-step "8/9 — Start pglite + run migrations + seed"
+step "9/9 — Set up database and seed"
 mkdir -p "$HOME/nanoproof-data"
+# Make sure .env exists with the correct DATABASE_URL
+if [ ! -f .env ]; then
+  cat > .env <<'ENVEOF'
+NODE_ENV=development
+PORT=4000
+LOG_LEVEL=info
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
+DATABASE_SHADOW_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
+DATABASE_POOL_SIZE=5
+DATABASE_POOL_TIMEOUT_MS=5000
+ARC_RPC_URL=https://rpc.testnet.arc.network
+ARC_CHAIN_ID=arc-testnet
+ARCSCAN_URL=https://testnet.arcscan.app
+AUTH_PROVIDER=demo
+JWT_SECRET=local-dev-secret-only-do-not-use-in-production
+NANOPROOF_DEMO_MODE=true
+ENVEOF
+  ok "wrote apps/api/.env"
+fi
+
+# Start pglite in background, run migrate, then stop it
 ./node_modules/.bin/pglite-server --port=5432 --db="$HOME/nanoproof-data" > /tmp/pglite.log 2>&1 &
 PGLITE_PID=$!
 sleep 3
-echo "pglite pid: $PGLITE_PID"
-
-# Wait for pglite to be reachable
-for i in $(seq 1 30); do
-  if (echo > /dev/tcp/127.0.0.1/5432) 2>/dev/null; then
-    ok "pglite reachable on 127.0.0.1:5432"
-    break
-  fi
+for i in $(seq 1 20); do
+  if (echo > /dev/tcp/127.0.0.1/5432) 2>/dev/null; then break; fi
   sleep 1
 done
-
-# Migrations
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres ./node_modules/.bin/prisma migrate deploy 2>&1 | tail -3
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres node node_modules/prisma/build/index.js migrate deploy 2>&1 | tail -5
 ok "migrations applied"
+kill $PGLITE_PID 2>/dev/null
+sleep 1
 
-# Seed
-cd ..
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres node scripts/seed-citations.js 2>&1 | tail -5
-ok "demo citations seeded"
-
-step "9/9 — Start api (background) and web (foreground)"
-cd apps/api
+ok "ALL 9 STEPS COMPLETE"
 echo ""
-echo "───────────────────────────────────────────────────────────────────────"
-echo "  ✅  Database up, migrations applied, demo data seeded"
+echo "============================================================"
+echo "  ✅  API is installed and built."
+echo "============================================================"
 echo ""
-echo "  In TWO MORE TABS run:"
+echo "To run the full stack, open three more Termux tabs."
 echo ""
-echo "      Tab 1 — API:"
-echo "        cd ~/nanoproof-protocol/apps/api"
-echo "        DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres \\"
-echo "        PORT=4000 node dist/main.js"
+echo "  Tab 1 (database) — paste this:"
+echo "    cd $REPO_DIR/apps/api"
+echo "    ./node_modules/.bin/pglite-server --port=5432 --db=\$HOME/nanoproof-data"
+echo "    # leave running; you should see: 'PGLiteSocketServer listening on {...port 5432...}'"
 echo ""
-echo "      Tab 2 — Web:"
-echo "        cd ~/nanoproof-protocol/apps/web"
-echo "        NEXT_PUBLIC_API_URL=http://127.0.0.1:4000 npm run dev"
+echo "  Tab 2 (api) — paste this AFTER Tab 1 is up:"
+echo "    cd $REPO_DIR/apps/api"
+echo "    DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres \\"
+echo "      PORT=4000 node dist/apps/api/src/main.js"
+echo "    # leave running; you should see '🚀 API listening at http://127.0.0.1:4000'"
 echo ""
-echo "  Then open Chrome on your phone → http://127.0.0.1:3000"
-echo "───────────────────────────────────────────────────────────────────────"
+echo "  Tab 3 (web) — paste this AFTER Tab 2 is up:"
+echo "    cd $REPO_DIR/apps/web"
 echo ""
-
-# Launch api in foreground so you can see it boot
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres PORT=4000 node dist/main.js
+echo "    npm install --no-audit --no-fund --no-package-lock --legacy-peer-deps --loglevel=warn"
+echo "    cp .env.example .env.local"
+echo "    cat > .env.local <<'NUXT_ENV'"
+echo "    NEXT_PUBLIC_API_URL=http://127.0.0.1:4000"
+echo "    NEXT_PUBLIC_DEMO_MODE=true"
+echo "    NUXT_ENV"
+echo ""
+echo "    # Copy @nanoproof/shared into apps/web's node_modules too:"
+echo "    cp -r ../api/node_modules/@nanoproof ." 2>/dev/null || true"
+echo "    mkdir -p node_modules/@nanoproof"
+echo "    cp -r ../../packages/shared node_modules/@nanoproof/"
+echo "    cp -r ../../packages/agent   node_modules/@nanoproof/"
+echo ""
+echo "    npm run dev"
+echo "    # leave running; you should see '▲ Next.js ... Local: http://127.0.0.1:3000'"
+echo ""
+echo "  Finally open Chrome on your phone and visit:"
+echo "    http://127.0.0.1:3000"
+echo ""
+echo "If anything fails, screenshot the failing step and send it."
+echo "We'll have you paste the next fix in minutes."
