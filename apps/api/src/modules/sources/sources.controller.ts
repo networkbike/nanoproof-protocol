@@ -26,11 +26,14 @@ import { ZodValidationPipe } from "../../common/pipes/zod-validation.pipe.js";
 import {
   ApiKeyGuard,
   CurrentPrincipal,
+  DebugOnly,
   Public,
   RequireScopes,
   type Principal,
 } from "../../common/decorators/index.js";
+import { DebugOnlyGuard } from "../../common/guards/debug-only.guard.js";
 import { ApiKeyScope } from "@prisma/client";
+import { PrismaService } from "../../prisma/prisma.service.js";
 import { SourcesService } from "./sources.service.js";
 
 @ApiTags("sources")
@@ -38,7 +41,10 @@ import { SourcesService } from "./sources.service.js";
 @Controller({ path: "v1/sources", version: undefined })
 
 export class SourcesController {
-  constructor(private readonly sources: SourcesService) {}
+  constructor(
+    private readonly sources: SourcesService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post()
   @RequireScopes(ApiKeyScope.WRITE_CITATIONS)
@@ -96,6 +102,26 @@ export class SourcesController {
     @Body(new ZodValidationPipe(StartSourceVerificationSchema)) body: z.infer<typeof StartSourceVerificationSchema>,
   ) {
     return this.sources.runVerification(id, body.method);
+  }
+
+  /**
+   * Force-activate a Source. Used by the demo seed script to populate
+   * realistic citations when the creator's domain doesn't actually serve
+   * the verification meta tag or DNS record.
+   *
+   * Public so the seed script can call it without an API key. In a real
+   * deployment this would be gated behind an admin scope; for the Lepton
+   * demo it stays open to make the seeding flow trivial.
+   */
+  @Post(":id/force-active")
+  @Public()
+  @HttpCode(200)
+  @ApiOperation({ summary: "Force a Source to ACTIVE (demo seed helper).", operationId: "forceActiveSource" })
+  async forceActive(@Param("id") id: string) {
+    return this.prisma.source.update({
+      where: { id },
+      data: { status: "ACTIVE", verifiedAt: new Date() },
+    });
   }
 
   @Get(":id/verifications")
