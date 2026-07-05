@@ -9,7 +9,20 @@
 
 ## Status
 
-**Phase 7 — Arc Integration** (planned). The contract surface is sketched here. Implementation lands in Phase 7 of the [Roadmap](../ROADMAP.md).
+> ⚠️ **This directory currently contains Foundry configuration only — no Solidity source files are committed yet.**
+> The onchain settlement contracts are planned for Phase 7 per the [Roadmap](../ROADMAP.md) and intentionally deferred to a post-hackathon milestone. The Lepton submission runs entirely on **off-chain hash-chained SettlementProofs** verified on ArcScan via the Blockscout v2 API.
+
+### What ships today
+- ✅ Off-chain `SettlementProof` (hash-chained, immutable)
+- ✅ ArcScan verification (Blockscout v2 integration)
+- ✅ x402 payment protocol on Arc testnet
+- ✅ Real USDC transfers to creator wallets
+
+### What this directory will contain (Phase 7+)
+- `CitationRegistry.sol` — onchain anchor for Source fingerprints
+- `PaymentRouter.sol` — USDC distribution to creator vaults
+- `CitationReceipt.sol` — emits `CitationPaid(sourceId, agentId, amount, txHash)`
+- `MockUSDC.sol` — testnet-only deploys
 
 ---
 
