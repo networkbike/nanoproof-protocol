@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: foundry-rs/foundry-toolchain@v1
       - name: Build + test
-        working-directory: packages/contracts
+        working-directory: contracts
         run: |
           forge --version
           forge build
