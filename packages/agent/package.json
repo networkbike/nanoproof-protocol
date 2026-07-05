@@ -25,7 +25,7 @@
     "seed": "tsx src/data/seed.ts"
   },
   "dependencies": {
-    "@nanoproof/shared": "workspace:*",
+    "@nanoproof/shared": "file:../shared",
     "zod": "catalog:"
   },
   "devDependencies": {
