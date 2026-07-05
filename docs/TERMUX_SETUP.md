@@ -25,17 +25,40 @@ pglite stands up a real Postgres wire-protocol server on `127.0.0.1:5432`, so Pr
 
 Tested on Termux 0.118 from **F-Droid** (NOT Google Play — Play is stale).
 
-### 0. Install Termux from F-Droid
+### 0. Install Termux (no F-Droid needed)
 
-1. Uninstall any existing Termux (Google Play version is broken).
-2. Install from [https://f-droid.org/en/packages/com.termux/](https://f-droid.org/en/packages/com.termux/).
-3. Open Termux once and let it finish bootstrapping.
-4. **Update everything BEFORE installing anything else:**
+Termux ships in three places. **Use the GitHub APK if you don't want to install F-Droid first.** All three contain the same app.
+
+| Source | When to use |
+| --- | --- |
+| **GitHub Releases APK** *(recommended)* | If you have no F-Droid and don't want it. Tap the link → phone installs via "Install unknown apps" prompt. |
+| F-Droid | If you want auto-updates and a package manager for Termux itself. |
+| Google Play | **DON'T USE — abandoned in Nov 2020, incompatible with any package updates.** |
+
+**Direct GitHub APK URLs** ([v0.118.3, latest](https://github.com/termux/termux-app/releases/tag/v0.118.3), May 2025):
+
+| Your phone's CPU | Use this APK |
+| --- | --- |
+| **Most modern phones** (Pixel, Galaxy, Xiaomi, OnePlus, etc. — last 6 years) | `https://github.com/termux/termux-app/releases/download/v0.118.3/termux-app_v0.118.3+github-debug_arm64-v8a.apk` (35 MB) |
+| Older phones (pre-2018) | `..._armeabi-v7a.apk` |
+| Emulator / Chromebook | `..._x86_64.apk` |
+| "I don't know / I want to be safe" | `..._universal.apk` (118 MB) |
+
+**How to install from GitHub on your phone:**
+
+1. Open Chrome (or any browser) on your phone.
+2. Paste the arm64-v8a URL above → wait for the 35 MB download.
+3. Tap the notification → Android asks "Allow this source to install apps?" → tap **Settings** → enable **Allow from this source** for Chrome → back → **Install**.
+4. If the installer refuses with "App not installed", you may have a leftover Google Play Termux installed; uninstall it first.
+5. Once installed, open Termux once and let it finish bootstrapping (one-time, ~30 s).
+6. Now run the update line:
 
 ```bash
 pkg update -y && pkg upgrade -y
 termux-setup-storage          # lets Termux see /sdcard (for adb push if needed)
 ```
+
+> **If you want F-Droid anyway:** it's at https://f-droid.org/en/packages/com.termux/ — download the F-Droid app first, then "Install" Termux from within it. F-Droid also serves the same APK so the path is identical to GitHub Releases.
 
 ### 1. Install build dependencies (~3 min)
 
@@ -308,6 +331,34 @@ tmux new -s demo \; \
 ---
 
 ## Troubleshooting
+
+### "App not installed" / "For your security, your phone is not allowed to install unknown apps"
+
+When tapping the GitHub APK, Android blocks the install. Two ways to fix:
+
+**Most Android 8–14 phones:**
+1. Tap the downloaded notification → tap **Settings** → toggle ON **Allow from this source** for your browser (Chrome is usually shown).
+2. Tap back → tap the notification again → **Install**.
+
+**Older phones (Android 7):**
+1. From the home screen, swipe down the notification shade.
+2. Long-press the "Apps from unknown sources" warning.
+3. Toggle Chrome ON, then back out.
+4. Reopen the APK → Install.
+
+**If you lost the notification:** open `Settings → Apps → Special app access → Install unknown apps → Chrome → Allow from this source`.
+
+### "There was a problem parsing the package"
+
+Means the APK is wrong architecture or corrupted. Most phones since ~2017 are arm64. To check yours:
+- `Settings → About phone → Processor` (look for `ARMv8` or `aarch64`)
+- If it says something else, grab a different APK from the table in step 0.
+
+Also check the file completed downloading — phones sometimes interrupt big downloads on flaky wifi.
+
+---
+
+## If the original installation issues persist
 
 ### `pglite-server` binary won't start / "incompatible architecture"
 
