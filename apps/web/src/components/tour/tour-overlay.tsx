@@ -76,13 +76,17 @@ export function TourOverlay() {
   const step = tour.steps[tour.stepIndex];
   const [target, setTarget] = useState<Position | null>(null);
 
-  // If the step requires a different path, navigate to it (only once per step change)
+  // If the tour is OPEN and the current step requires a different path,
+  // navigate to it. Critical: only do this when tour.open is true, not
+  // when the overlay is just mounted-but-invisible, otherwise we'd hijack
+  // the user away from any page that wasn't /landing.
   useEffect(() => {
+    if (!tour.open) return;
     if (!step?.path) return;
     if (typeof window !== "undefined" && window.location.pathname !== step.path) {
       router.push(step.path);
     }
-  }, [step, router]);
+  }, [tour.open, step, router]);
 
   // After path change + a tick, look up the target and scroll into view
   useLayoutEffect(() => {
