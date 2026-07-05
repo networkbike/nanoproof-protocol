@@ -448,23 +448,58 @@ We don't use `migrate dev` (which tries to read your local Postgres' migration h
 
 ## Quickstart TL;DR (one giant paste)
 
-If you've already done Option A steps 0–4 once on your phone, this is the recurring boot:
+If you've already done Option A steps 0–4 once on your phone, every subsequent recording session starts with:
 
 ```bash
-# tab 1 — db
-cd ~/nanoproof-protocol/apps/api && \
-  ./node_modules/.bin/pglite-server --port=5432 --database=nano-local \
-    --data-dir=$HOME/nanoproof-data &
-
-# tab 2 — api
-cd ~/nanoproof-protocol/apps/api && node dist/main.js &
-
-# tab 3 — web
-cd ~/nanoproof-protocol/apps/web && pnpm dev
+cd ~/nanoproof-protocol
+git pull --ff-only
+bash scripts/run-dev-termux.sh
 ```
 
-Then open `http://127.0.0.1:3000` in Android Chrome.
+That brings up a tmux session named `nano` with a 2×2 grid:
+
+```
++-------------------+-------------------+
+|  db · pglite      |  migrate + seed   |
++-------------------+-------------------+
+|  api · :4000      |  web · :3000      |
++-------------------+-------------------+
+```
+
+Wait ~10 seconds for pane 4 to print `▲ Next.js ... Local: http://127.0.0.1:3000`, then open your phone's Chrome and visit `http://127.0.0.1:3000`.
+
+### If Chrome won't reach 127.0.0.1:3000
+
+When Chrome refuses (you see "This site can't be reached" but Next.js is clearly listening), it's because Android Chrome tries to use the phone's loopback, not Termux's. Three fixes:
+
+**1. Same-network laptop:**
+Connect both to the same Wi-Fi, find the phone's IP with `ifconfig wlan0` (install `iproute2` if missing), then from the laptop visit `http://<phone-ip>:3000`.
+
+**2. `adb reverse` (USB-connected laptop):**
+Plug in the phone, run on the laptop:
+```bash
+adb reverse tcp:3000 tcp:3000
+adb reverse tcp:4000 tcp:4000
+```
+Chrome on the phone now reaches Termux via `http://127.0.0.1:<port>`.
+
+**3. Termux:Float + Termux:API:**
+Run Termux in an always-on-top window. Install both from F-Droid, give Termux:API accessibility access. Then in Chrome → open 127.0.0.1:3000, and you'll see NanoProof above the keyboard.
+
+### Stopping everything
+
+To kill all four processes at once:
+```bash
+# Inside tmux: Ctrl-b then ":kill-server" (yes, you type the colon)
+# Or from another shell:
+tmux kill-session -t nano
+pkill -f pglite-server
+pkill -f "node.*dist/main"
+pkill -f "next dev"
+```
+
+Or simply swipe Termux off the recent-apps list — the OS will SIGKILL all the JS processes and pglite will re-load from $HOME/nanoproof-data on next boot.
 
 ---
 
-Last verified: 2026-07-05, on `f738b90` (Phase 11 + tour bugfix). README quickstart still assumes Docker — this document supersedes it for Termux.
+Last verified: 2026-07-05, on `5b9f55b` (Phase 11 + tour bugfix + Termux installer hardening). README quickstart still assumes Docker — this document supersedes it for Termux.
